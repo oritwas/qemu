@@ -170,7 +170,8 @@ struct QEMUFile {
                            when reading */
     int buf_index;
     int buf_size; /* 0 when writing */
-    uint8_t buf[IO_BUF_SIZE];
+    int buf_max_size;
+    uint8_t *buf;
 
     int last_error;
 };
@@ -456,6 +457,9 @@ QEMUFile *qemu_fopen_ops(void *opaque, const QEMUFileOps *ops)
     f->ops = ops;
     f->is_write = 0;
 
+    f->buf_max_size = IO_BUF_SIZE;
+    f->buf = g_malloc(sizeof(uint8_t) * f->buf_max_size);
+
     return f;
 }
 
@@ -487,6 +491,19 @@ static int qemu_fflush(QEMUFile *f)
         f->buf_index = 0;
     }
     return ret;
+}
+
+void *qemu_realloc_buffer(QEMUFile *f, int size)
+{
+    f->buf_max_size = size;
+    f->buf = g_realloc(f->buf, f->buf_max_size);
+
+    return f->buf;
+}
+
+void qemu_clear_buffer(QEMUFile *f)
+{
+    f->buf_size = f->buf_index = f->buf_offset = 0;
 }
 
 static void qemu_fill_buffer(QEMUFile *f)
@@ -551,6 +568,7 @@ int qemu_fclose(QEMUFile *f)
     if (f->last_error) {
         ret = f->last_error;
     }
+    g_free(f->buf);
     g_free(f);
     return ret;
 }
