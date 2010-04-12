@@ -37,6 +37,7 @@ struct MigrationState
     int (*get_error)(MigrationState *s);
     int (*close)(MigrationState *s);
     int (*write)(MigrationState *s, const void *buff, size_t size);
+    int (*read)(MigrationState *s, const void *buff, size_t size);
     void *opaque;
     MigrationParams params;
     int64_t total_time;
@@ -82,6 +83,8 @@ ssize_t migrate_fd_put_buffer(MigrationState *s, const void *data,
 void migrate_fd_put_ready(MigrationState *s);
 int migrate_fd_wait_for_unfreeze(MigrationState *s);
 int migrate_fd_close(MigrationState *s);
+int migrate_fd_get_buffer(MigrationState *s, uint8_t *data, int64_t pos, size_t size);
+
 
 void add_migration_state_change_notifier(Notifier *notify);
 void remove_migration_state_change_notifier(Notifier *notify);

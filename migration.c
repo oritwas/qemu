@@ -331,6 +331,19 @@ ssize_t migrate_fd_put_buffer(MigrationState *s, const void *data,
     return ret;
 }
 
+int migrate_fd_get_buffer(MigrationState *s, uint8_t *data, int64_t pos,
+                          size_t size)
+{
+    int ret;
+
+    ret = s->read(s, data, size);
+    if (ret == -1) {
+        ret = -(s->get_error(s));
+    }
+
+    return ret;
+}
+
 void migrate_fd_put_ready(MigrationState *s)
 {
     int ret;

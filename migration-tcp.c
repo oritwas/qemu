@@ -39,6 +39,20 @@ static int socket_write(MigrationState *s, const void * buf, size_t size)
     return send(s->fd, buf, size, 0);
 }
 
+static int socket_read(MigrationState *s, const void * buf, size_t size)
+{
+    ssize_t len;
+
+    do {
+        len = recv(s->fd, (void *)buf, size, 0);
+    } while (len == -1 && socket_error() == EINTR);
+    if (len == -1) {
+        len = -socket_error();
+    }
+
+    return len;
+}
+
 static int tcp_close(MigrationState *s)
 {
     int r = 0;
@@ -68,6 +82,7 @@ void tcp_start_outgoing_migration(MigrationState *s, const char *host_port, Erro
 {
     s->get_error = socket_errno;
     s->write = socket_write;
+    s->read = socket_read;
     s->close = tcp_close;
 
     s->fd = inet_nonblocking_connect(host_port, tcp_wait_for_connect, s, errp);
