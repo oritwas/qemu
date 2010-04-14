@@ -21,6 +21,7 @@
 #include "block/block.h"
 #include "qemu/sockets.h"
 #include "migration/block.h"
+#include "migration/ft_trans_file.h"
 #include "qmp-commands.h"
 
 //#define DEBUG_MIGRATION
@@ -40,6 +41,8 @@ enum {
     MIG_STATE_ACTIVE,
     MIG_STATE_COMPLETED,
 };
+
+enum FT_MODE ft_mode = FT_OFF;
 
 #define MAX_THROTTLE  (32 << 20)      /* Migration speed throttling */
 

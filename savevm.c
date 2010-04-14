@@ -476,7 +476,7 @@ static void qemu_file_set_error(QEMUFile *f, int ret)
 /** Flushes QEMUFile buffer
  *
  */
-static int qemu_fflush(QEMUFile *f)
+int qemu_fflush(QEMUFile *f)
 {
     int ret = 0;
 
