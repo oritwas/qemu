@@ -86,6 +86,7 @@
 #include "qmp-commands.h"
 #include "trace.h"
 #include "qemu/bitops.h"
+#include "migration/ft_trans_file.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -219,6 +220,22 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     return len;
 }
 
+static ssize_t socket_put_buffer(void *opaque, const void *buf, size_t size)
+{
+    QEMUFileSocket *s = opaque;
+    ssize_t len;
+
+    do {
+        len = send(s->fd, (void *)buf, size, 0);
+    } while (len == -1 && socket_error() == EINTR);
+
+    if (len == -1) {
+        len = -socket_error();
+    }
+
+    return len;
+}
+
 static int socket_close(void *opaque)
 {
     QEMUFileSocket *s = opaque;
@@ -227,11 +244,85 @@ static int socket_close(void *opaque)
     return 0;
 }
 
+typedef struct QEMUFileSocketTrans
+{
+    int fd;
+    QEMUFileSocket *s;
+    VMChangeStateEntry *e;
+} QEMUFileSocketTrans;
+
+
+static int socket_trans_get_buffer(void *opaque, uint8_t *buf, int64_t pos, size_t size)
+{
+    QEMUFileSocketTrans *t = opaque;
+    QEMUFileSocket *s = t->s;
+    ssize_t len;
+
+    len = socket_get_buffer(s, buf, pos, size);
+
+    return len;
+}
+
+static ssize_t socket_trans_put_buffer(void *opaque, const void *buf, size_t size)
+{
+    QEMUFileSocketTrans *t = opaque;
+
+    return socket_put_buffer(t->s, buf, size);
+}
+
+static int qemu_loadvm_state_no_header(QEMUFile *f);
+
+static int socket_trans_get_ready(void *opaque)
+{
+    QEMUFileSocketTrans *t = opaque;
+    QEMUFileSocket *s = t->s;
+    QEMUFile *f = s->file;
+    int ret = 0;
+
+    ret = qemu_loadvm_state_no_header(f);
+    if (ret < 0) {
+        fprintf(stderr,
+                "socket_trans_get_ready: error while loading vmstate\n");
+    }
+
+    return ret;
+}
+
+static int socket_trans_close(void *opaque)
+{
+    QEMUFileSocketTrans *t = opaque;
+    QEMUFileSocket *s = t->s;
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+    qemu_set_fd_handler2(t->fd, NULL, NULL, NULL, NULL);
+    qemu_del_vm_change_state_handler(t->e);
+    close(s->fd);
+    close(t->fd);
+    g_free(s);
+    g_free(t);
+
+    return 0;
+}
+
+static void socket_trans_resume(void *opaque, int running, RunState state)
+{
+    QEMUFileSocketTrans *t = opaque;
+    QEMUFileSocket *s = t->s;
+
+    if (!running) {
+        return;
+    }
+
+    qemu_announce_self();
+    qemu_fclose(s->file);
+}
+
 static int stdio_get_fd(void *opaque)
 {
     QEMUFileStdio *s = opaque;
 
     return fileno(s->stdio_file);
+
 }
 
 static int stdio_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, int size)
@@ -385,6 +476,26 @@ QEMUFile *qemu_fopen_socket(int fd)
     return s->file;
 }
 
+QEMUFile *qemu_fopen_ft_trans(int s_fd, int c_fd)
+{
+    QEMUFileSocketTrans *t = g_malloc0(sizeof(QEMUFileSocketTrans));
+    QEMUFileSocket *s = g_malloc0(sizeof(QEMUFileSocket));
+
+    t->s = s;
+    t->fd = s_fd;
+    t->e = qemu_add_vm_change_state_handler(socket_trans_resume, t);
+
+    s->fd = c_fd;
+    s->file = qemu_fopen_ops_ft_trans(t, socket_trans_put_buffer,
+                                      socket_trans_get_buffer, NULL,
+                                      socket_trans_get_ready,
+                                      migrate_fd_wait_for_unfreeze,
+                                      socket_trans_close, 0);
+    socket_set_nonblock(s->fd);
+
+    return s->file;
+}
+
 QEMUFile *qemu_fopen(const char *filename, const char *mode)
 {
     QEMUFileStdio *s;
@@ -506,6 +617,39 @@ void qemu_clear_buffer(QEMUFile *f)
     f->buf_size = f->buf_index = f->buf_offset = 0;
 }
 
+int qemu_ft_trans_begin(QEMUFile *f)
+{
+    int ret;
+    ret = ft_trans_begin(f->opaque);
+    if (ret < 0) {
+        f->last_error = 1;
+    }
+    return ret;
+}
+
+int qemu_ft_trans_commit(QEMUFile *f)
+{
+    int ret;
+    ret = ft_trans_commit(f->opaque);
+    if (ret == -EAGAIN) {
+        return 1;
+    }
+    if (ret < 0) {
+        f->last_error = 1;
+    }
+    return ret;
+}
+
+int qemu_ft_trans_cancel(QEMUFile *f)
+{
+    int ret;
+    ret = ft_trans_cancel(f->opaque);
+    if (ret < 0) {
+        f->last_error = 1;
+    }
+    return ret;
+}
+
 static void qemu_fill_buffer(QEMUFile *f)
 {
     int len;
@@ -576,6 +720,14 @@ int qemu_fclose(QEMUFile *f)
 int qemu_file_put_notify(QEMUFile *f)
 {
     return f->ops->put_buffer(f->opaque, NULL, 0, 0);
+}
+
+void qemu_file_get_notify(void *opaque)
+{
+    QEMUFile *f = opaque;
+    if (f->ops->get_buffer(f->opaque, f->buf, 0, 0) < 0) {
+        f->last_error = 1;
+    }
 }
 
 void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)

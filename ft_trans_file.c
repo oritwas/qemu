@@ -37,6 +37,7 @@ typedef struct QEMUFileFtTrans
     FtTransGetReadyFunc *get_ready;
     FtTransWaitForUnfreezeFunc *wait_for_unfreeze;
     FtTransCloseFunc *close;
+    
     void *opaque;
     QEMUFile *file;
 
@@ -548,7 +549,7 @@ int ft_trans_commit(void *opaque)
     while (!s->has_error && s->put_offset) {
         ft_trans_flush(s);
         if (s->freeze_output) {
-            s->wait_for_unfreeze(s);
+            s->wait_for_unfreeze(migrate_get_current());
         }
     }
 

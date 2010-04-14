@@ -16,6 +16,7 @@
 #define QEMU_FT_TRANSACTION_FILE_H
 
 #include "hw/hw.h"
+#include "migration/migration.h"
 
 enum QEMU_VM_TRANSACTION_STATE {
     QEMU_VM_TRANSACTION_NACK = -1,
@@ -54,7 +55,7 @@ typedef int (FtTransGetBufferFunc)(void *opaque, uint8_t *buf, int64_t pos, size
 typedef ssize_t (FtTransPutVectorFunc)(void *opaque, const struct iovec *iov, int iovcnt);
 typedef int (FtTransPutReadyFunc)(void *opaque);
 typedef int (FtTransGetReadyFunc)(void *opaque);
-typedef void (FtTransWaitForUnfreezeFunc)(void *opaque);
+typedef int (FtTransWaitForUnfreezeFunc)(struct MigrationState *);
 typedef int (FtTransCloseFunc)(void *opaque);
 
 int ft_trans_begin(void *opaque);

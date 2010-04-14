@@ -78,10 +78,11 @@ void migrate_fd_error(MigrationState *s);
 
 void migrate_fd_connect(MigrationState *s);
 
+int migrate_fd_wait_for_unfreeze(MigrationState *s);
+
 ssize_t migrate_fd_put_buffer(MigrationState *s, const void *data,
                               size_t size);
 void migrate_fd_put_ready(MigrationState *s);
-int migrate_fd_wait_for_unfreeze(MigrationState *s);
 int migrate_fd_close(MigrationState *s);
 int migrate_fd_get_buffer(MigrationState *s, uint8_t *data, int64_t pos, size_t size);
 
