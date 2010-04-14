@@ -1939,6 +1939,131 @@ void qemu_savevm_state_cancel(QEMUFile *f)
     }
 }
 
+int qemu_savevm_trans_begin(QEMUFile *f)
+{
+    SaveStateEntry *se;
+    int skipped = 0;
+    int ret;
+    
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        int len;
+
+        /* Section type */
+        qemu_put_byte(f, QEMU_VM_SECTION_START);
+        qemu_put_be32(f, se->section_id);
+
+        /* ID string */
+        len = strlen(se->idstr);
+        qemu_put_byte(f, len);
+        qemu_put_buffer(f, (uint8_t *)se->idstr, len);
+
+        qemu_put_be32(f, se->instance_id);
+        qemu_put_be32(f, se->version_id);
+    
+        ret = se->ops->save_live_setup(f, se->opaque);
+        if (!ret) {
+            skipped++;
+        }
+    }
+
+    ret = qemu_file_get_error(f);
+    if (!ret) {
+        return ret;
+    }
+
+    return skipped;
+}
+
+int qemu_savevm_trans_iterate(QEMUFile *f)
+{
+    SaveStateEntry *se;
+    int skipped = 0;
+    int ret;
+    
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        int len;
+
+        /* Section type */
+        qemu_put_byte(f, QEMU_VM_SECTION_START);
+        qemu_put_be32(f, se->section_id);
+
+        /* ID string */
+        len = strlen(se->idstr);
+        qemu_put_byte(f, len);
+        qemu_put_buffer(f, (uint8_t *)se->idstr, len);
+
+        qemu_put_be32(f, se->instance_id);
+        qemu_put_be32(f, se->version_id);
+    
+        ret = se->ops->save_live_iterate(f, se->opaque);
+        if (!ret) {
+            skipped++;
+        }
+    }
+
+    ret = qemu_file_get_error(f);
+    if (!ret) {
+        return ret;
+    }
+
+    return skipped;
+}
+
+int qemu_savevm_trans_complete(QEMUFile *f)
+{
+    SaveStateEntry *se;
+    int ret;
+    
+    cpu_synchronize_all_states();
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        if (!se->ops || !se->ops->save_live_complete) {
+            continue;
+        }
+        if (se->ops && se->ops->is_active) {
+            if (!se->ops->is_active(se->opaque)) {
+                continue;
+            }
+        }
+
+        /* Section type */
+        qemu_put_byte(f, QEMU_VM_SECTION_END);
+        qemu_put_be32(f, se->section_id);
+    
+        ret = se->ops->save_live_complete(f, se->opaque);
+        if (ret < 0) {
+            /* do not proceed to the next vmstate. */
+            return 1;
+        }
+    }
+
+    QTAILQ_FOREACH(se, &savevm_handlers, entry) {
+        int len;
+
+        if ((!se->ops || !se->ops->save_state) && !se->vmsd) {
+            continue;
+        }
+
+        /* Section type */
+        qemu_put_byte(f, QEMU_VM_SECTION_FULL);
+        qemu_put_be32(f, se->section_id);
+
+        /* ID string */
+        len = strlen(se->idstr);
+        qemu_put_byte(f, len);
+        qemu_put_buffer(f, (uint8_t *)se->idstr, len);
+
+        qemu_put_be32(f, se->instance_id);
+        qemu_put_be32(f, se->version_id);
+
+        vmstate_save(f, se);
+    }
+
+    qemu_put_byte(f, QEMU_VM_EOF);
+
+    return qemu_file_get_error(f);
+}
+
 static int qemu_savevm_state(QEMUFile *f)
 {
     int ret;
