@@ -72,6 +72,12 @@ void qemu_start_incoming_migration(const char *uri, Error **errp)
 {
     const char *p;
 
+    /* check ft_mode (Kemari protocol) */
+    if (strstart(uri, "kemari:", &p)) {
+        ft_mode = FT_INIT;
+        uri = p;
+    }
+
     if (strstart(uri, "tcp:", &p))
         tcp_start_incoming_migration(p, errp);
 #if !defined(WIN32)
@@ -798,6 +804,12 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
     }
 
     s = migrate_init(&params);
+
+    /* check ft_mode (Kemari protocol) */
+    if (strstart(uri, "kemari:", &p)) {
+        ft_mode = FT_INIT;
+        uri = p;
+    }
 
     if (strstart(uri, "tcp:", &p)) {
         tcp_start_outgoing_migration(s, p, &local_err);
