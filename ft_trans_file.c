@@ -35,10 +35,8 @@ typedef struct QEMUFileFtTrans
     FtTransGetBufferFunc *get_buffer;
     FtTransPutReadyFunc *put_ready;
     FtTransGetReadyFunc *get_ready;
-    FtTransWaitForUnfreezeFunc *wait_for_unfreeze;
-    FtTransCloseFunc *close;
     
-    void *opaque;
+    MigrationState *migrate_state;
     QEMUFile *file;
 
     enum QEMU_VM_TRANSACTION_STATE state;
@@ -95,7 +93,7 @@ static void ft_trans_flush(QEMUFileFtTrans *s)
     while (offset < s->put_offset) {
         ssize_t ret;
 
-        ret = s->put_buffer(s->opaque, s->buf + offset, s->put_offset - offset);
+        ret = s->put_buffer(s->migrate_state, s->buf + offset, s->put_offset - offset);
         if (ret == -EAGAIN) {
             break;
         }
@@ -127,7 +125,7 @@ static ssize_t ft_trans_put(void *opaque, void *buf, int size)
     }
 
     while (!s->freeze_output && offset < size) {
-        len = s->put_buffer(s->opaque, (uint8_t *)buf + offset, size - offset);
+        len = s->put_buffer(s->migrate_state, (uint8_t *)buf + offset, size - offset);
 
         if (len == -EAGAIN) {
             trace_ft_trans_freeze_output();
@@ -190,12 +188,12 @@ static int ft_trans_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, in
 
     /* assuming qemu_file_put_notify() is calling */
     if (pos == 0 && size == 0) {
-        trace_ft_trans_put_ready(s->opaque);
+        trace_ft_trans_put_ready(s->migrate_state);
         ft_trans_flush(s);
 
         if (!s->freeze_output) {
             trace_ft_trans_cb(s->put_ready);
-            ret = s->put_ready(s->opaque);
+            ret = s->put_ready(s->migrate_state);
         }
 
         ret = 0;
@@ -229,7 +227,7 @@ static int ft_trans_fill_buffer(void *opaque, void *buf, int size)
     s->freeze_input = 0;
 
     while (offset < size) {
-        len = s->get_buffer(s->opaque, (uint8_t *)buf + offset,
+        len = s->get_buffer(s->migrate_state, (uint8_t *)buf + offset,
                             0, size - offset);
         if (len == -EAGAIN) {
             trace_ft_trans_freeze_input();
@@ -340,7 +338,7 @@ static int ft_trans_recv(QEMUFileFtTrans *s)
         }
 
         trace_ft_trans_cb(s->get_ready);
-        ret = s->get_ready(s->opaque);
+        ret = s->get_ready(s->migrate_state);
         if (ret < 0) {
             goto out;
         }
@@ -408,7 +406,7 @@ static int ft_trans_get_buffer(void *opaque, uint8_t *buf,
             }
 
             trace_ft_trans_cb(s->get_ready);
-            ret = s->get_ready(s->opaque);
+            ret = s->get_ready(s->migrate_state);
             if (ret < 0) {
                 goto out;
             }
@@ -440,7 +438,7 @@ static int ft_trans_close(void *opaque)
     int ret;
 
     trace_ft_trans_close();
-    ret = s->close(s->opaque);
+    ret = migrate_fd_close(s->migrate_state);
     if (s->is_sender) {
         g_free(s->buf);
     }
@@ -549,7 +547,7 @@ int ft_trans_commit(void *opaque)
     while (!s->has_error && s->put_offset) {
         ft_trans_flush(s);
         if (s->freeze_output) {
-            s->wait_for_unfreeze(migrate_get_current());
+            migrate_fd_wait_for_unfreeze(s->migrate_state);
         }
     }
 
@@ -602,26 +600,22 @@ static const QEMUFileOps ft_trans_file_ops = {
     .set_rate_limit = ft_trans_set_rate_limit,
 };
 
-QEMUFile *qemu_fopen_ops_ft_trans(void *opaque,
+QEMUFile *qemu_fopen_ops_ft_trans(MigrationState *migrate_state,
                                   FtTransPutBufferFunc *put_buffer,
                                   FtTransGetBufferFunc *get_buffer,
                                   FtTransPutReadyFunc *put_ready,
                                   FtTransGetReadyFunc *get_ready,
-                                  FtTransWaitForUnfreezeFunc *wait_for_unfreeze,
-                                  FtTransCloseFunc *close,
                                   bool is_sender)
 {
     QEMUFileFtTrans *s;
 
     s = g_malloc0(sizeof(*s));
 
-    s->opaque = opaque;
+    s->migrate_state = migrate_state;
     s->put_buffer = put_buffer;
     s->get_buffer = get_buffer;
     s->put_ready = put_ready;
     s->get_ready = get_ready;
-    s->wait_for_unfreeze = wait_for_unfreeze;
-    s->close = ft_trans_close;
     s->is_sender = is_sender;
     s->id = 0;
     s->seq = 0;

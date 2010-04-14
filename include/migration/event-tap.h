@@ -13,8 +13,9 @@
 #include "qemu-common.h"
 #include "net/net.h"
 #include "block/block.h"
+#include "migration/migration.h"
 
-int event_tap_register(int (*cb)(void *opaque), void *opaque);
+int event_tap_register(int (*cb)(MigrationState *s), void *opaque);
 void event_tap_unregister(void);
 int event_tap_is_on(void);
 void event_tap_schedule_suspend(void);

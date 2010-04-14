@@ -476,6 +476,7 @@ QEMUFile *qemu_fopen_socket(int fd)
     return s->file;
 }
 
+/*
 QEMUFile *qemu_fopen_ft_trans(int s_fd, int c_fd)
 {
     QEMUFileSocketTrans *t = g_malloc0(sizeof(QEMUFileSocketTrans));
@@ -488,13 +489,12 @@ QEMUFile *qemu_fopen_ft_trans(int s_fd, int c_fd)
     s->fd = c_fd;
     s->file = qemu_fopen_ops_ft_trans(t, socket_trans_put_buffer,
                                       socket_trans_get_buffer, NULL,
-                                      socket_trans_get_ready,
-                                      migrate_fd_wait_for_unfreeze,
-                                      socket_trans_close, 0);
+                                      socket_trans_get_ready, 0);
     socket_set_nonblock(s->fd);
 
     return s->file;
 }
+*/
 
 QEMUFile *qemu_fopen(const char *filename, const char *mode)
 {

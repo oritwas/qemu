@@ -96,7 +96,7 @@ static EventTapLog *last_event_tap;
 static QTAILQ_HEAD(, EventTapLog) event_list;
 static QTAILQ_HEAD(, EventTapLog) event_pool;
 
-static int (*event_tap_cb)(void *opaque);
+static int (*event_tap_cb)(MigrationState *s);
 static QEMUBH *event_tap_bh;
 static VMChangeStateEntry *vmstate;
 static void *current_migration;
@@ -661,7 +661,7 @@ static inline void event_tap_mmio_load(QEMUFile *f, EventTapMMIO *mmio)
     qemu_get_buffer(f, mmio->buf, mmio->len);
 }
 
-int event_tap_register(int (*cb)(void *opaque), void *opaque)
+int event_tap_register(int (*cb)(MigrationState *s), void *opaque)
 {
     if (event_tap_state != EVENT_TAP_OFF) {
         error_report("event-tap is already on");

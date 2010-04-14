@@ -23,6 +23,7 @@
 #include "migration/block.h"
 #include "migration/ft_trans_file.h"
 #include "qmp-commands.h"
+#include "migration/event-tap.h"
 
 //#define DEBUG_MIGRATION
 
@@ -279,12 +280,24 @@ static int migrate_fd_cleanup(MigrationState *s)
     return ret;
 }
 
+
 void migrate_fd_error(MigrationState *s)
 {
     DPRINTF("setting error state\n");
     s->state = MIG_STATE_ERROR;
     notifier_list_notify(&migration_state_notifiers, s);
     migrate_fd_cleanup(s);
+}
+
+static void migrate_ft_trans_error(MigrationState *s)
+{
+    ft_mode = FT_ERROR;
+    qemu_savevm_state_cancel(s->file);
+    migrate_fd_error(s);
+    /* we need to set vm running to avoid assert in virtio-net */
+    vm_start();
+    event_tap_unregister();
+    vm_stop(0);
 }
 
 static void migrate_fd_completed(MigrationState *s)
@@ -297,6 +310,17 @@ static void migrate_fd_completed(MigrationState *s)
         runstate_set(RUN_STATE_POSTMIGRATE);
     }
     notifier_list_notify(&migration_state_notifiers, s);
+}
+
+static void migrate_fd_get_notify(void *opaque)
+{
+    MigrationState *s = opaque;
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+    qemu_file_get_notify(s->file);
+    if (qemu_file_get_error(s->file)) {
+        migrate_ft_trans_error(s);
+    }
 }
 
 static void migrate_fd_put_notify(void *opaque)
@@ -344,7 +368,230 @@ int migrate_fd_get_buffer(MigrationState *s, uint8_t *data, int64_t pos,
         ret = -(s->get_error(s));
     }
 
+    if (ret == -EAGAIN) {
+        qemu_set_fd_handler2(s->fd, NULL, migrate_fd_get_notify, NULL, s);
+    }
+
     return ret;
+}
+
+static int migrate_ft_trans_commit(void *opaque)
+{
+    MigrationState *s = opaque;
+    int ret = -1;
+
+    if (ft_mode != FT_TRANSACTION_COMMIT && ft_mode != FT_TRANSACTION_ATOMIC) {
+        fprintf(stderr,
+                "migrate_ft_trans_commit: invalid ft_mode %d\n", ft_mode);
+        goto out;
+    }
+
+    do {
+        if (ft_mode == FT_TRANSACTION_ATOMIC) {
+            if (qemu_ft_trans_begin(s->file) < 0) {
+                fprintf(stderr, "qemu_ft_trans_begin failed\n");
+                goto out;
+            }
+
+            ret = qemu_savevm_trans_begin(s->file);
+            if (ret < 0) {
+                fprintf(stderr, "qemu_savevm_trans_begin failed\n");
+                goto out;
+            }
+
+            ft_mode = FT_TRANSACTION_COMMIT;
+            if (ret) {
+                /* don't proceed until if fd isn't ready */
+                goto out;
+            }
+        }
+
+        /* make the VM state consistent by flushing outstanding events */
+        vm_stop(0);
+
+        /* send at full speed */
+        qemu_file_set_rate_limit(s->file, 0);
+
+        ret = qemu_savevm_trans_complete(s->file);
+        if (ret < 0) {
+            fprintf(stderr, "qemu_savevm_trans_complete failed\n");
+            goto out;
+        }
+
+        ret = qemu_ft_trans_commit(s->file);
+        if (ret < 0) {
+            fprintf(stderr, "qemu_ft_trans_commit failed\n");
+            goto out;
+        }
+
+        if (ret) {
+            ft_mode = FT_TRANSACTION_RECV;
+            ret = 1;
+            goto out;
+        }
+
+        /* flush and check if events are remaining */
+        vm_start();
+        ret = event_tap_flush_one();
+        if (ret < 0) {
+            fprintf(stderr, "event_tap_flush_one failed\n");
+            goto out;
+        }
+
+        ft_mode =  ret ? FT_TRANSACTION_BEGIN : FT_TRANSACTION_ATOMIC;
+    } while (ft_mode != FT_TRANSACTION_BEGIN);
+
+    vm_start();
+    ret = 0;
+
+  out:
+    return ret;
+}
+
+static int migrate_ft_trans_get_ready(MigrationState *s)
+{
+    int ret = -1;
+
+    if (ft_mode != FT_TRANSACTION_RECV) {
+        fprintf(stderr,
+                "migrate_ft_trans_get_ready: invalid ft_mode %d\n", ft_mode);
+        goto error_out;
+    }
+
+    /* flush and check if events are remaining */
+    vm_start();
+    ret = event_tap_flush_one();
+    if (ret < 0) {
+        fprintf(stderr, "event_tap_flush_one failed\n");
+        goto error_out;
+    }
+
+    if (ret) {
+        ft_mode = FT_TRANSACTION_BEGIN;
+    } else {
+        ft_mode = FT_TRANSACTION_ATOMIC;
+
+        ret = migrate_ft_trans_commit(s);
+        if (ret < 0) {
+            goto error_out;
+        }
+        if (ret) {
+            goto out;
+        }
+    }
+
+    vm_start();
+    ret = 0;
+    goto out;
+
+  error_out:
+    migrate_ft_trans_error(s);
+
+  out:
+    return ret;
+}
+
+static int migrate_ft_trans_put_ready(MigrationState *s)
+{
+    int ret = -1, timeout;
+    static int64_t start, now;
+
+    switch (ft_mode) {
+    case FT_INIT:
+        ft_mode = FT_TRANSACTION_BEGIN;
+    case FT_TRANSACTION_BEGIN:
+        now = start = qemu_get_clock_ns(vm_clock);
+        /* start transatcion at best effort */
+        qemu_file_set_rate_limit(s->file, 1);
+
+        if (qemu_ft_trans_begin(s->file) < 0) {
+            fprintf(stderr, "qemu_transaction_begin failed\n");
+            goto error_out;
+        }
+
+        vm_stop(0);
+
+        ret = qemu_savevm_trans_begin(s->file);
+        if (ret < 0) {
+            fprintf(stderr, "qemu_savevm_trans_begin\n");
+            goto error_out;
+        }
+
+        if (ret) {
+            ft_mode = FT_TRANSACTION_ITER;
+            vm_start();
+        } else {
+            ft_mode = FT_TRANSACTION_COMMIT;
+            if (migrate_ft_trans_commit(s) < 0) {
+                goto error_out;
+            }
+        }
+        break;
+
+    case FT_TRANSACTION_ITER:
+        now = qemu_get_clock_ns(vm_clock);
+        timeout = ((now - start) >= max_downtime);
+        if (timeout || qemu_savevm_state_iterate(s->file) == 1) {
+            DPRINTF("ft trans iter timeout %d\n", timeout);
+
+            ft_mode = FT_TRANSACTION_COMMIT;
+            if (migrate_ft_trans_commit(s) < 0) {
+                goto error_out;
+            }
+            return 1;
+        }
+
+        ft_mode = FT_TRANSACTION_ITER;
+        break;
+
+    case FT_TRANSACTION_ATOMIC:
+    case FT_TRANSACTION_COMMIT:
+        if (migrate_ft_trans_commit(s) < 0) {
+            goto error_out;
+        }
+        break;
+
+    default:
+        fprintf(stderr,
+                "migrate_ft_trans_put_ready: invalid ft_mode %d", ft_mode);
+        goto error_out;
+    }
+
+    ret = 0;
+    goto out;
+
+  error_out:
+    migrate_ft_trans_error(s);
+
+  out:
+    return ret;
+}
+
+static void migrate_ft_trans_connect(MigrationState *s, int old_vm_running)
+{
+    /* close buffered_file and open ft_trans_file
+     * NB: fd won't get closed, and reused by ft_trans_file
+     */
+    qemu_fclose(s->file);
+
+    s->file = qemu_fopen_ops_ft_trans(s,
+                                      migrate_fd_put_buffer,
+                                      migrate_fd_get_buffer,
+                                      migrate_ft_trans_put_ready,
+                                      migrate_ft_trans_get_ready,
+                                      1);
+    socket_set_nodelay(s->fd);
+
+    /* events are tapped from now */
+    if (event_tap_register(migrate_ft_trans_put_ready, s) < 0) {
+        migrate_ft_trans_error(s);
+    }
+
+    event_tap_schedule_suspend();
+
+    if (old_vm_running) {
+        vm_start();
+    }
 }
 
 void migrate_fd_put_ready(MigrationState *s)
@@ -372,7 +619,11 @@ void migrate_fd_put_ready(MigrationState *s)
         if (qemu_savevm_state_complete(s->file) < 0) {
             migrate_fd_error(s);
         } else {
-            migrate_fd_completed(s);
+            if (ft_mode) {
+                return migrate_ft_trans_connect(s, old_vm_running);
+            } else {
+                migrate_fd_completed(s);
+            }
         }
         end_time = qemu_get_clock_ms(rt_clock);
         s->total_time = end_time - s->total_time;
@@ -394,8 +645,16 @@ static void migrate_fd_cancel(MigrationState *s)
 
     s->state = MIG_STATE_CANCELLED;
     notifier_list_notify(&migration_state_notifiers, s);
-    qemu_savevm_state_cancel(s->file);
 
+    if (ft_mode) {
+        if (s->file) {
+            qemu_ft_trans_cancel(s->file);
+        }
+        ft_mode = FT_OFF;
+        event_tap_unregister();
+    }
+
+    qemu_savevm_state_cancel(s->file);
     migrate_fd_cleanup(s);
 }
 

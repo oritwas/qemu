@@ -50,25 +50,24 @@ extern enum FT_MODE ft_mode;
 #define FT_TRANS_ERR_STATE_INVALID 0x07 /* Invalid state */
 #define FT_TRANS_ERR_REALLOC_BUF   0x08 /* Realloc buffer failed */
 
-typedef ssize_t (FtTransPutBufferFunc)(void *opaque, const void *data, size_t size);
-typedef int (FtTransGetBufferFunc)(void *opaque, uint8_t *buf, int64_t pos, size_t size);
-typedef ssize_t (FtTransPutVectorFunc)(void *opaque, const struct iovec *iov, int iovcnt);
-typedef int (FtTransPutReadyFunc)(void *opaque);
-typedef int (FtTransGetReadyFunc)(void *opaque);
-typedef int (FtTransWaitForUnfreezeFunc)(struct MigrationState *);
-typedef int (FtTransCloseFunc)(void *opaque);
+typedef ssize_t (FtTransPutBufferFunc)(MigrationState *s, const void *data,
+                                       size_t size);
+typedef int (FtTransGetBufferFunc)(MigrationState *s, uint8_t *buf, int64_t pos,
+                                   size_t size);
+typedef ssize_t (FtTransPutVectorFunc)(MigrationState *s, const struct iovec *iov,
+                                       int iovcnt);
+typedef int (FtTransPutReadyFunc)(MigrationState *s);
+typedef int (FtTransGetReadyFunc)(MigrationState *s);
 
 int ft_trans_begin(void *opaque);
 int ft_trans_commit(void *opaque);
 int ft_trans_cancel(void *opaque);
 
-QEMUFile *qemu_fopen_ops_ft_trans(void *opaque,
+QEMUFile *qemu_fopen_ops_ft_trans(MigrationState *s,
                                   FtTransPutBufferFunc *put_buffer,
                                   FtTransGetBufferFunc *get_buffer,
                                   FtTransPutReadyFunc *put_ready,
                                   FtTransGetReadyFunc *get_ready,
-                                  FtTransWaitForUnfreezeFunc *wait_for_unfreeze,
-                                  FtTransCloseFunc *close,
                                   bool is_sender);
 
 #endif
