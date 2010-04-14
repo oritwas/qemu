@@ -18,6 +18,9 @@
 #include "migration/migration.h"
 #include "buffered_file.h"
 #include "block/block.h"
+#include "sysemu/sysemu.h"
+#include "migration/ft_trans_file.h"
+#include "migration/event-tap.h"
 
 //#define DEBUG_MIGRATION_TCP
 
@@ -28,6 +31,8 @@
 #define DPRINTF(fmt, ...) \
     do { } while (0)
 #endif
+
+static VMChangeStateEntry *vmstate;
 
 static int socket_errno(MigrationState *s)
 {
@@ -57,7 +62,9 @@ static int tcp_close(MigrationState *s)
 {
     int r = 0;
     DPRINTF("tcp_close\n");
-    if (closesocket(s->fd) < 0) {
+
+    /* FIX ME: accessing ft_mode here isn't clean */
+    if (ft_mode != FT_INIT && closesocket(s->fd) < 0) {
         r = -socket_error();
     }
     return r;
@@ -88,6 +95,36 @@ void tcp_start_outgoing_migration(MigrationState *s, const char *host_port, Erro
     s->fd = inet_nonblocking_connect(host_port, tcp_wait_for_connect, s, errp);
 }
 
+static void ft_trans_incoming(void *opaque)
+{
+    QEMUFile *f = opaque;
+
+    qemu_file_get_notify(f);
+    if (qemu_file_get_error(f)) {
+        ft_mode = FT_ERROR;
+        qemu_fclose(f);
+    }
+}
+
+static void ft_trans_reset(void *opaque, int running, RunState state)
+{
+    QEMUFile *f = opaque;
+
+    if (running) {
+        if (ft_mode != FT_ERROR) {
+            qemu_fclose(f);
+        }
+        ft_mode = FT_OFF;
+        qemu_del_vm_change_state_handler(vmstate);
+    }
+}
+
+static void ft_trans_schedule_replay(QEMUFile *f)
+{
+    event_tap_schedule_replay();
+    vmstate = qemu_add_vm_change_state_handler(ft_trans_reset, f);
+}
+
 static void tcp_accept_incoming_migration(void *opaque)
 {
     struct sockaddr_in addr;
@@ -115,8 +152,37 @@ static void tcp_accept_incoming_migration(void *opaque)
         goto out;
     }
 
+    if (ft_mode == FT_INIT) {
+        autostart = 0;
+    }
+
     process_incoming_migration(f);
-    return;
+
+    if (ft_mode == FT_INIT) {
+        int ret;
+
+        socket_set_nodelay(c);
+
+        f = qemu_fopen_ft_trans(s, c);
+        if (f == NULL) {
+            fprintf(stderr, "could not qemu_fopen_ft_trans\n");
+            goto out;
+        }
+
+        /* need to wait sender to setup */
+        ret = qemu_ft_trans_begin(f);
+        if (ret < 0) {
+            goto out;
+        }
+
+        qemu_set_fd_handler2(c, NULL, ft_trans_incoming, NULL, f);
+        ft_trans_schedule_replay(f);
+        ft_mode = FT_TRANSACTION_RECV;
+
+        return;
+    }
+
+    qemu_fclose(f);
 
 out:
     closesocket(c);
