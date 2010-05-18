@@ -22,6 +22,7 @@
 #include "sysemu/sysemu.h"
 #include "qemu/sockets.h"
 #include "slirp/libslirp.h"
+#include "migration/event-tap.h"
 
 #include <sys/time.h>
 
@@ -112,4 +113,30 @@ void migrate_add_blocker(Error *reason)
 
 void migrate_del_blocker(Error *reason)
 {
+}
+
+BlockDriverAIOCB *event_tap_bdrv_aio_writev(BlockDriverState *bs,
+                                            int64_t sector_num,
+                                            QEMUIOVector *iov,
+                                            int nb_sectors,
+                                            BlockDriverCompletionFunc *cb,
+                                            void *opaque)
+{
+    return NULL;
+}
+
+BlockDriverAIOCB *event_tap_bdrv_aio_flush(BlockDriverState *bs,
+                                           BlockDriverCompletionFunc *cb,
+                                           void *opaque)
+{
+    return NULL;
+}
+
+void event_tap_bdrv_flush(void)
+{
+}
+
+int event_tap_is_on(void)
+{
+    return 0;
 }
