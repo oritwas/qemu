@@ -12,7 +12,7 @@
 
 #include "qemu-common.h"
 #include "net/net.h"
-#include "migration/block.h"
+#include "block/block.h"
 
 int event_tap_register(int (*cb)(void *opaque), void *opaque);
 void event_tap_unregister(void);

@@ -28,6 +28,8 @@
 #include "exec/ioport.h"
 #include "trace.h"
 #include "exec/memory.h"
+#include "memory.h"
+#include "migration/event-tap.h"
 
 /***********************************************************/
 /* IO Port */
@@ -78,6 +80,7 @@ static void ioport_write(int index, uint32_t address, uint32_t data)
         default_ioport_writel
     };
     IOPortWriteFunc *func = ioport_write_table[index][address];
+    event_tap_ioport(index, address, data);
     if (!func)
         func = default_func[index];
     func(ioport_opaque[address], address, data);
