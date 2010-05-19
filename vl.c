@@ -166,6 +166,7 @@ int main(int argc, char **argv)
 #include "sysemu/cpus.h"
 #include "sysemu/arch_init.h"
 #include "qemu/osdep.h"
+#include "migration/event-tap.h"
 
 #include "ui/qemu-spice.h"
 #include "qapi/string-input-visitor.h"
@@ -3764,6 +3765,8 @@ int main(int argc, char **argv, char **envp)
     bdrv_init_with_whitelist();
 
     blk_mig_init();
+
+    event_tap_init();
 
     /* open the virtual block devices */
     if (snapshot)
