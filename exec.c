@@ -34,9 +34,9 @@
 #include "hw/xen.h"
 #include "qemu/timer.h"
 #include "qemu/config-file.h"
-#include "exec/memory.h"
-#include "sysemu/dma.h"
 #include "exec/address-spaces.h"
+#include "sysemu/dma.h"
+#include "migration/event-tap.h"
 #if defined(CONFIG_USER_ONLY)
 #include <qemu.h>
 #else /* !CONFIG_USER_ONLY */
@@ -1839,9 +1839,13 @@ void address_space_rw(AddressSpace *as, hwaddr addr, uint8_t *buf,
         section = phys_page_find(d, page >> TARGET_PAGE_BITS);
 
         if (is_write) {
+
             if (!memory_region_is_ram(section->mr)) {
                 hwaddr addr1;
                 addr1 = memory_region_section_addr(section, addr);
+
+                event_tap_mmio(addr, buf, len);
+
                 /* XXX: could force cpu_single_env to NULL to avoid
                    potential bugs */
                 if (l >= 4 && ((addr1 & 3) == 0)) {
