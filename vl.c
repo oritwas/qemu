@@ -1404,6 +1404,7 @@ void gui_setup_refresh(DisplayState *ds)
 struct vm_change_state_entry {
     VMChangeStateHandler *cb;
     void *opaque;
+    int deleted;
     QLIST_ENTRY (vm_change_state_entry) entries;
 };
 
@@ -1424,18 +1425,22 @@ VMChangeStateEntry *qemu_add_vm_change_state_handler(VMChangeStateHandler *cb,
 
 void qemu_del_vm_change_state_handler(VMChangeStateEntry *e)
 {
-    QLIST_REMOVE (e, entries);
-    g_free (e);
+    e->deleted = 1;
 }
 
 void vm_state_notify(int running, RunState state)
 {
-    VMChangeStateEntry *e;
+    VMChangeStateEntry *e, *ne;
 
     trace_vm_state_notify(running, state);
 
-    for (e = vm_change_state_head.lh_first; e; e = e->entries.le_next) {
-        e->cb(e->opaque, running, state);
+    QLIST_FOREACH_SAFE(e, &vm_change_state_head, entries, ne) {
+        if (e->deleted) {
+            QLIST_REMOVE(e, entries);
+            g_free(e);
+        } else {
+            e->cb(e->opaque, running, state);
+        }
     }
 }
 
