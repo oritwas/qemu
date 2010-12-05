@@ -39,6 +39,7 @@
 #include "qapi-visit.h"
 #include "qapi/opts-visitor.h"
 #include "qapi/dealloc-visitor.h"
+#include "migration/event-tap.h"
 
 /* Net bridge is currently not supported for W32. */
 #if !defined(_WIN32)
@@ -394,6 +395,10 @@ ssize_t qemu_send_packet_async(NetClientState *sender,
 
 void qemu_send_packet(NetClientState *nc, const uint8_t *buf, int size)
 {
+    if (event_tap_is_on()) {
+        return event_tap_send_packet(nc, buf, size);
+    }
+
     qemu_send_packet_async(nc, buf, size, NULL);
 }
 
@@ -449,6 +454,10 @@ ssize_t qemu_sendv_packet_async(NetClientState *sender,
                                 NetPacketSent *sent_cb)
 {
     NetQueue *queue;
+
+    if (event_tap_is_on()) {
+        return event_tap_sendv_packet_async(sender, iov, iovcnt, sent_cb);
+    }
 
     if (sender->link_down || !sender->peer) {
         return iov_size(iov, iovcnt);
