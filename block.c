@@ -34,6 +34,7 @@
 #include "block/coroutine.h"
 #include "qmp-commands.h"
 #include "qemu/timer.h"
+#include "migration/event-tap.h"
 
 #ifdef CONFIG_BSD
 #include <sys/types.h>
@@ -3397,6 +3398,11 @@ BlockDriverAIOCB *bdrv_aio_writev(BlockDriverState *bs, int64_t sector_num,
 {
     trace_bdrv_aio_writev(bs, sector_num, nb_sectors, opaque);
 
+    if (*bs->device_name && event_tap_is_on()) {
+        return event_tap_bdrv_aio_writev(bs, sector_num, qiov, nb_sectors,
+                                         cb, opaque);
+    }
+
     return bdrv_co_aio_rw_vector(bs, sector_num, qiov, nb_sectors,
                                  cb, opaque, true);
 }
@@ -3929,6 +3935,10 @@ BlockDriverAIOCB *bdrv_aio_flush(BlockDriverState *bs,
     Coroutine *co;
     BlockDriverAIOCBCoroutine *acb;
 
+    if (*bs->device_name && event_tap_is_on()) {
+        return event_tap_bdrv_aio_flush(bs, cb, opaque);
+    }
+
     acb = qemu_aio_get(&bdrv_em_co_aiocb_info, bs, cb, opaque);
     acb->done = NULL;
 
@@ -4158,6 +4168,9 @@ int bdrv_flush(BlockDriverState *bs)
         /* Fast-path if already in coroutine context */
         bdrv_flush_co_entry(&rwco);
     } else {
+        if (*bs->device_name && event_tap_is_on()) {
+            event_tap_bdrv_flush();
+        }
         co = qemu_coroutine_create(bdrv_flush_co_entry);
         qemu_coroutine_enter(co, &rwco);
         while (rwco.ret == NOT_DONE) {
