@@ -644,8 +644,9 @@ void migrate_fd_put_ready(MigrationState *s)
 
 static void migrate_fd_cancel(MigrationState *s)
 {
-    if (s->state != MIG_STATE_ACTIVE)
+    if (s->state == MIG_STATE_CANCELLED) {
         return;
+    }
 
     DPRINTF("cancelling migration\n");
 
