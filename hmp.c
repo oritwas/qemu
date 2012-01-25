@@ -755,6 +755,19 @@ void hmp_migrate_set_downtime(Monitor *mon, const QDict *qdict)
     qmp_migrate_set_downtime(value, NULL);
 }
 
+void hmp_migrate_set_cachesize(Monitor *mon, const QDict *qdict)
+{
+    int64_t value = qdict_get_int(qdict, "value");
+    Error *err = NULL;
+
+    qmp_migrate_set_cachesize(value, &err);
+    if (err) {
+        monitor_printf(mon, "%s\n", error_get_pretty(err));
+        error_free(err);
+        return;
+    }
+}
+
 void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict)
 {
     int64_t value = qdict_get_int(qdict, "value");

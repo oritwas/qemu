@@ -22,6 +22,7 @@
 #include "qemu_socket.h"
 #include "block-migration.h"
 #include "qmp-commands.h"
+#include <math.h>
 
 //#define DEBUG_MIGRATION
 
@@ -43,7 +44,7 @@ enum {
 
 #define MAX_THROTTLE  (32 << 20)      /* Migration speed throttling */
 
-/* Migration XBZRLE cache size */
+/* Migration XBZRLE default cache size */
 #define DEFAULT_MIGRATE_CACHE_SIZE (64 * 1024 * 1024)
 
 static NotifierList migration_state_notifiers =
@@ -520,6 +521,20 @@ void qmp_migrate(const char *uri, bool has_blk, bool blk,
 void qmp_migrate_cancel(Error **errp)
 {
     migrate_fd_cancel(migrate_get_current());
+}
+
+void qmp_migrate_set_cachesize(int64_t value, Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+
+    /* Check for truncation */
+    if (value != (size_t)value) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "cache size",
+                  "exceeding address space");
+        return;
+    }
+
+    s->xbzrle_cache_size = xbzrle_cache_resize(value);
 }
 
 void qmp_migrate_set_speed(int64_t value, Error **errp)

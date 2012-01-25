@@ -1381,6 +1381,22 @@
 { 'command': 'migrate_set_speed', 'data': {'value': 'int'} }
 
 ##
+# @migrate_set_cachesize
+#
+# Set XBZRLE cache size
+#
+# @value: cache size in bytes
+#
+# The size will be rounded down to the nearest power of 2.
+# The cache size can be modified before and during ongoing migration
+#
+# Returns: nothing on success
+#
+# Since: 1.2
+##
+{ 'command': 'migrate_set_cachesize', 'data': {'value': 'int'} }
+
+##
 # @ObjectPropertyInfo:
 #
 # @name: the name of the property
