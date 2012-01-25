@@ -829,6 +829,26 @@ STEXI
 @item migrate_cancel
 @findex migrate_cancel
 Cancel the current VM migration.
+
+ETEXI
+
+    {
+        .name       = "migrate_set_cachesize",
+        .args_type  = "value:o",
+        .params     = "value",
+        .help       = "set cache size (in bytes) for XBZRLE migrations,"
+                      "the cache size will be rounded down to the nearest "
+                      "power of 2.\n"
+                      "The cache size effects the number of cache misses."
+                      "In case of a high cache miss ratio you need to increase"
+                      " the cache size",
+        .mhandler.cmd = hmp_migrate_set_cachesize,
+    },
+
+STEXI
+@item migrate_set_cachesize @var{value}
+@findex migrate_set_cachesize
+Set cache size to @var{value} (in bytes) for xbzrle migrations.
 ETEXI
 
     {

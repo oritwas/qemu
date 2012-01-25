@@ -520,6 +520,29 @@ Example:
 <- { "return": {} }
 
 EQMP
+{
+        .name       = "migrate-set-cache-size",
+        .args_type  = "value:o",
+        .mhandler.cmd_new = qmp_marshal_input_migrate_set_cache_size,
+    },
+
+SQMP
+migrate-set-cache-size
+---------------------
+
+Set cache size to be used by XBZRLE migration, the cache size will be rounded
+down to the nearest power of 2
+
+Arguments:
+
+- "value": cache size in bytes (json-int)
+
+Example:
+
+-> { "execute": "migrate-set-cache-size", "arguments": { "value": 536870912 } }
+<- { "return": {} }
+
+EQMP
 
     {
         .name       = "migrate_set_speed",
