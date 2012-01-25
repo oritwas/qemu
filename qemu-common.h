@@ -1,3 +1,4 @@
+
 /* Common header file that is included by all of qemu.  */
 #ifndef QEMU_COMMON_H
 #define QEMU_COMMON_H
@@ -416,6 +417,23 @@ static inline uint64_t muldiv64(uint64_t a, uint32_t b, uint32_t c)
 
 /* Round number up to multiple */
 #define QEMU_ALIGN_UP(n, m) QEMU_ALIGN_DOWN((n) + (m) - 1, (m))
+
+static inline bool is_power_of_2(int64_t value)
+{
+    if (!value) {
+        return 0;
+    }
+
+    return !(value & (value - 1));
+}
+
+static inline int64_t round2pow2(int64_t value)
+{
+    while (!is_power_of_2(value)) {
+        value &=  ~(1 << (ffs(value) - 1));
+    }
+    return value;
+}
 
 #include "module.h"
 
