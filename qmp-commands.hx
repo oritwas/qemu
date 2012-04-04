@@ -2075,18 +2075,31 @@ The main json-object contains the following:
          - "transferred": amount transferred (json-int)
          - "remaining": amount remaining (json-int)
          - "total": total (json-int)
-
+- "capabilities": migration capabilities state
+         - "xbzrle" : XBZRLE state (json-bool)
 Examples:
 
 1. Before the first migration
 
 -> { "execute": "query-migrate" }
-<- { "return": {} }
+<- { "return": {
+        "capabilities" :  [ { "capability" : "xbzrle", "state" : false } ]
+     }
+   }
 
 2. Migration is done and has succeeded
 
 -> { "execute": "query-migrate" }
-<- { "return": { "status": "completed" } }
+<- { "return": {
+        "status": "completed",
+        "capabilities":  [ { "capability" : "xbzrle", "state" : false } ],
+        "ram":{
+          "transferred":123,
+          "remaining":123,
+          "total":246
+        }
+     }
+   }
 
 3. Migration is done and has failed
 
@@ -2099,6 +2112,7 @@ Examples:
 <- {
       "return":{
          "status":"active",
+         "capabilities":  [ { "capability" : "xbzrle", "state" : false } ],
          "ram":{
             "transferred":123,
             "remaining":123,
@@ -2113,6 +2127,7 @@ Examples:
 <- {
       "return":{
          "status":"active",
+         "capabilities":  [ { "capability" : "xbzrle", "state" : false } ],
          "ram":{
             "total":1057024,
             "remaining":1053304,
@@ -2133,6 +2148,56 @@ EQMP
         .args_type  = "",
         .mhandler.cmd_new = qmp_marshal_input_query_migrate,
     },
+
+SQMP
+query-migration-capabilities
+-------
+
+Query migration capabilities
+
+- "xbzrle": xbzrle support
+
+Arguments:
+
+Example:
+
+-> { "execute": "query-migration-capabilities"}
+<- { "return": [ { "capability": "xbzrle", "state": true },
+                 { "capability": "foobar", "state": false } ] }
+
+EQMP
+
+    {
+        .name       = "query-migration-capabilities",
+        .args_type  = "",
+	.mhandler.cmd_new = qmp_marshal_input_query_migration_capabilities,
+    },
+
+SQMP
+migrate_set_parameters
+-------
+
+Enable/Disable migration capabilities
+
+- "xbzrle": xbzrle support
+
+Arguments:
+
+Example:
+
+-> { "execute": "migrate_set_parameters" , "arguments":
+     { "parameters": [ { "capability": "xbzrle", "state": true } ] } }
+
+EQMP
+
+    {
+        .name       = "migrate_set_parameters",
+        .args_type  = "parameters:O",
+	.params     = "capability:s,state:b",
+	.mhandler.cmd_new = qmp_marshal_input_migrate_set_parameters,
+    },
+
+
 
 SQMP
 query-balloon

@@ -18,6 +18,7 @@
 #include "qemu-common.h"
 #include "notify.h"
 #include "error.h"
+#include "qapi-types.h"
 
 struct MigrationParams {
     bool blk;
@@ -38,6 +39,7 @@ struct MigrationState
     void *opaque;
     MigrationParams params;
     int64_t total_time;
+    bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
 };
 
 void process_incoming_migration(QEMUFile *f);

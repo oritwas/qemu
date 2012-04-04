@@ -288,11 +288,15 @@
 #        status, only returned if status is 'active' and it is a block
 #        migration
 #
-# Since: 0.14.0
+# @capabilities: #optional a list describing all the migration capabilities
+#                state
+#
+# Since: 0.14.0, 'capabilities' since 1.2
 ##
 { 'type': 'MigrationInfo',
   'data': {'*status': 'str', '*ram': 'MigrationStats',
-           '*disk': 'MigrationStats'} }
+           '*disk': 'MigrationStats',
+           '*capabilities': ['MigrationCapabilityInfo']} }
 
 ##
 # @query-migrate
@@ -304,6 +308,51 @@
 # Since: 0.14.0
 ##
 { 'command': 'query-migrate', 'returns': 'MigrationInfo' }
+
+##
+# @MigrationCapability
+#
+# Migration capabilities enumeration
+#
+# @xbzrle: current migration supports xbzrle
+#
+# Since: 1.2
+##
+{ 'enum': 'MigrationCapability',
+  'data': ['xbzrle'] }
+
+##
+# @MigrationCapabilityInfo
+#
+# Migration capability information
+#
+# @capability: capability enum
+#
+# Since: 1.2
+##
+{ 'type': 'MigrationCapabilityInfo',
+  'data': { 'capability' : 'MigrationCapability', 'state' : 'bool' } }
+
+##
+# @query-migration-capabilities
+#
+# Returns information about current migration process capabilties.
+#
+# Returns: @MigrationCapabilityInfo list
+#
+# Since: 1.2
+##
+{ 'command': 'query-migration-capabilities', 'returns': ['MigrationCapabilityInfo'] }
+
+##
+# @migrate_set_parameters
+#
+# Enable/Disable the following migration capabilities (like xbzrle)
+#
+# Since: 1.2
+##
+{ 'command': 'migrate-set-parameters',
+  'data': { 'capabilities': ['MigrationCapabilityInfo'] } }
 
 ##
 # @MouseInfo:

@@ -117,12 +117,36 @@ MigrationInfo *qmp_query_migrate(Error **errp)
 {
     MigrationInfo *info = g_malloc0(sizeof(*info));
     MigrationState *s = migrate_get_current();
+    int i;
 
     switch (s->state) {
     case MIG_STATE_SETUP:
-        /* no migration has happened ever */
+        /* no migration has ever happened; show enabled capabilities */
+        for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+            if (!info->has_capabilities) {
+                info->capabilities = g_malloc0(sizeof(*info->capabilities));
+                info->has_capabilities = true;
+            }
+            info->capabilities->value =
+                g_malloc(sizeof(*info->capabilities->value));
+            info->capabilities->value->capability = i;
+            info->capabilities->value->state = s->enabled_capabilities[i];
+            info->capabilities->next = NULL;
+        }
         break;
     case MIG_STATE_ACTIVE:
+        for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+            if (!info->has_capabilities) {
+                info->capabilities = g_malloc0(sizeof(*info->capabilities));
+                info->has_capabilities = true;
+            }
+            info->capabilities->value =
+                g_malloc(sizeof(*info->capabilities->value));
+            info->capabilities->value->capability = i;
+            info->capabilities->value->state = s->enabled_capabilities[i];
+            info->capabilities->next = NULL;
+        }
+
         info->has_status = true;
         info->status = g_strdup("active");
 
@@ -143,6 +167,18 @@ MigrationInfo *qmp_query_migrate(Error **errp)
         }
         break;
     case MIG_STATE_COMPLETED:
+        for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+            if (!info->has_capabilities) {
+                info->capabilities = g_malloc0(sizeof(*info->capabilities));
+                info->has_capabilities = true;
+            }
+            info->capabilities->value =
+                g_malloc(sizeof(*info->capabilities->value));
+            info->capabilities->value->capability = i;
+            info->capabilities->value->state = s->enabled_capabilities[i];
+            info->capabilities->next = NULL;
+        }
+
         info->has_status = true;
         info->status = g_strdup("completed");
 
@@ -164,6 +200,33 @@ MigrationInfo *qmp_query_migrate(Error **errp)
     }
 
     return info;
+}
+
+MigrationCapabilityInfoList *qmp_query_migration_capabilities(Error **errp)
+{
+    MigrationCapabilityInfoList *caps_list = g_malloc0(sizeof(*caps_list));
+
+    caps_list->value = g_malloc(sizeof(*caps_list->value));
+    caps_list->value->capability = MIGRATION_CAPABILITY_XBZRLE;
+    caps_list->next = NULL;
+
+    return caps_list;
+}
+
+void qmp_migrate_set_parameters(MigrationCapabilityInfoList *params,
+                                Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+    MigrationCapabilityInfoList *cap;
+
+    if (s->state == MIG_STATE_ACTIVE) {
+        error_set(errp, QERR_MIGRATION_ACTIVE);
+        return;
+    }
+
+    for (cap = params; cap; cap = cap->next) {
+        s->enabled_capabilities[cap->value->capability] = cap->value->state;
+    }
 }
 
 /* shared migration helpers */
@@ -375,12 +438,17 @@ static MigrationState *migrate_init(const MigrationParams *params)
 {
     MigrationState *s = migrate_get_current();
     int64_t bandwidth_limit = s->bandwidth_limit;
+    bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
+
+    memcpy(enabled_capabilities, s->enabled_capabilities,
+           sizeof(enabled_capabilities));
 
     memset(s, 0, sizeof(*s));
     s->bandwidth_limit = bandwidth_limit;
     s->params = *params;
+    memcpy(s->enabled_capabilities, enabled_capabilities,
+           sizeof(enabled_capabilities));
 
-    s->bandwidth_limit = bandwidth_limit;
     s->state = MIG_STATE_SETUP;
     s->total_time = qemu_get_clock_ms(rt_clock);
 

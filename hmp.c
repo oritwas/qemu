@@ -131,9 +131,19 @@ void hmp_info_mice(Monitor *mon)
 void hmp_info_migrate(Monitor *mon)
 {
     MigrationInfo *info;
+    MigrationCapabilityInfoList *cap;
 
     info = qmp_query_migrate(NULL);
 
+    if (info->has_capabilities && info->capabilities) {
+        monitor_printf(mon, "capabilities: ");
+        for (cap = info->capabilities; cap; cap = cap->next) {
+            monitor_printf(mon, "%s: %s ",
+                           MigrationCapability_lookup[cap->value->capability],
+                           cap->value->state ? "on" : "off");
+        }
+        monitor_printf(mon, "\n");
+    }
     if (info->has_status) {
         monitor_printf(mon, "Migration status: %s\n", info->status);
     }
@@ -159,6 +169,25 @@ void hmp_info_migrate(Monitor *mon)
     }
 
     qapi_free_MigrationInfo(info);
+}
+
+void hmp_info_migration_capabilities(Monitor *mon)
+{
+    MigrationCapabilityInfoList *caps_list, *cap;
+
+    caps_list = qmp_query_migration_capabilities(NULL);
+    if (!caps_list) {
+        monitor_printf(mon, "No migration capabilities found\n");
+        return;
+    }
+
+    for (cap = caps_list; cap; cap = cap->next) {
+        monitor_printf(mon, "%s: %s ",
+                       MigrationCapability_lookup[cap->value->capability],
+                       cap->value->state ? "on" : "off");
+    }
+
+    qapi_free_MigrationCapabilityInfoList(caps_list);
 }
 
 void hmp_info_cpus(Monitor *mon)
@@ -733,6 +762,41 @@ void hmp_migrate_set_speed(Monitor *mon, const QDict *qdict)
 {
     int64_t value = qdict_get_int(qdict, "value");
     qmp_migrate_set_speed(value, NULL);
+}
+
+void hmp_migrate_set_parameter(Monitor *mon, const QDict *qdict)
+{
+    const char *cap = qdict_get_str(qdict, "capability");
+    bool state = qdict_get_bool(qdict, "state");
+    Error *err = NULL;
+    MigrationCapabilityInfoList *params = NULL;
+    int i;
+
+    for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
+        if (strcmp(cap, MigrationCapability_lookup[i]) == 0) {
+            if (!params) {
+                params = g_malloc0(sizeof(*params));
+            }
+            params->value = g_malloc0(sizeof(*params->value));
+            params->value->capability = i;
+            params->value->state = state;
+            params->next = NULL;
+            qmp_migrate_set_parameters(params, &err);
+            break;
+        }
+    }
+
+    if (i == MIGRATION_CAPABILITY_MAX) {
+        error_set(&err, QERR_INVALID_PARAMETER, cap);
+    }
+
+    qapi_free_MigrationCapabilityInfoList(params);
+
+    if (err) {
+        monitor_printf(mon, "migrate_set_parameter: %s\n",
+                       error_get_pretty(err));
+        error_free(err);
+    }
 }
 
 void hmp_set_password(Monitor *mon, const QDict *qdict)
