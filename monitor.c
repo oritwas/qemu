@@ -2687,6 +2687,13 @@ static mon_cmd_t info_cmds[] = {
         .mhandler.info = hmp_info_migrate,
     },
     {
+        .name       = "migration_capabilities",
+        .args_type  = "",
+        .params     = "",
+        .help       = "show migration capabilities",
+        .mhandler.info = hmp_info_migration_capabilities,
+    },
+    {
         .name       = "balloon",
         .args_type  = "",
         .params     = "",

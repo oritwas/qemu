@@ -2135,6 +2135,56 @@ EQMP
     },
 
 SQMP
+query-migration-capabilities
+-------
+
+Query migration capabilities
+
+- "xbzrle": xbzrle support
+
+Arguments:
+
+Example:
+
+-> { "execute": "query-migration-capabilities"}
+<- { "return": [ { "capability": "xbzrle", "state": true },
+                 { "capability": "foobar", "state": false } ] }
+
+EQMP
+
+    {
+        .name       = "query-migration-capabilities",
+        .args_type  = "",
+	.mhandler.cmd_new = qmp_marshal_input_query_migration_capabilities,
+    },
+
+SQMP
+migrate_set_parameters
+-------
+
+Enable/Disable migration capabilities
+
+- "xbzrle": xbzrle support
+
+Arguments:
+
+Example:
+
+-> { "execute": "migrate_set_parameters" , "arguments":
+     { "parameters":  { "capability": "xbzrle", "state": true } ] } }
+
+EQMP
+
+    {
+        .name       = "migrate_set_parameters",
+        .args_type  = "parameters:O",
+	.params     = "capability:s,state:b",
+	.mhandler.cmd_new = qmp_marshal_input_migrate_set_parameters,
+    },
+
+
+
+SQMP
 query-balloon
 -------------
 
