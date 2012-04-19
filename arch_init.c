@@ -767,7 +767,7 @@ static inline void *host_from_stream_offset(QEMUFile *f,
     return NULL;
 }
 
-static int ram_load(QEMUFile *f, void *opaque, int version_id)
+static int ram_load(QEMUFile *f, void *opaque, int version_id, Error **errp)
 {
     ram_addr_t addr;
     int flags, ret = 0;
@@ -855,7 +855,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
             qemu_get_buffer(f, host, TARGET_PAGE_SIZE);
         } else if (flags & RAM_SAVE_FLAG_XBZRLE) {
-            void *host = host_from_stream_offset(f, addr, flags);
+            void *host = host_from_stream_offset(f, addr, flags, errp);
             if (!host) {
                 return -EINVAL;
             }

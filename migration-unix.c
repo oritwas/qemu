@@ -56,6 +56,8 @@ static void unix_wait_for_connect(int fd, void *opaque)
     if (fd < 0) {
         DPRINTF("migrate connect error\n");
         s->fd = -1;
+        error_set(&s->last_error, QERR_MIGRATION_CONNECT_ERROR,
+                  strerror(socket_error()));
         migrate_fd_error(s);
     } else {
         DPRINTF("migrate connect success\n");

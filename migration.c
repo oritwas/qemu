@@ -232,6 +232,11 @@ MigrationInfo *qmp_query_migrate(Error **errp)
     case MIG_STATE_ERROR:
         info->has_status = true;
         info->status = g_strdup("failed");
+        info->has_error = true;
+        if (!error_is_set(&s->last_error)) {
+            error_set(&s->last_error, QERR_UNDEFINED_ERROR);
+        }
+        info->error = g_strdup(error_get_pretty(s->last_error));
         break;
     case MIG_STATE_CANCELLED:
         info->has_status = true;

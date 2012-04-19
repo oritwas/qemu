@@ -168,6 +168,16 @@ void assert_no_error(Error *err);
 #define QERR_MIGRATION_BLOCK_NOT_FOUND \
     ERROR_CLASS_GENERIC_ERROR, "Migration: Block %s not found"
 
+#define QERR_MIGRATION_COMPLETE_ERROR \
+    ERROR_CLASS_GENERIC_ERROR, "Migration error is complete state: %s"
+
+#define QERR_MIGRATION_CONNECT_ERROR \
+    ERROR_CLASS_GENERIC_ERROR, "Failed to connect: %s"
+
+#define QERR_MIGRATION_EXPECTED \
+    ERROR_CLASS_MIGRATION_EXPECTED, \
+    "An incoming migration is expected before this command can be executed"
+
 #define QERR_MIGRATION_EXPECTED_BLOCK_ID \
     ERROR_CLASS_GENERIC_ERROR, "Migration: expexted block id"
 
