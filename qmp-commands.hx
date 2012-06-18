@@ -2093,18 +2093,28 @@ The main json-object contains the following:
          - "transferred": amount transferred (json-int)
          - "remaining": amount remaining (json-int)
          - "total": total (json-int)
+	 - "duplicate": number of duplicated pages (json-int)
+	 - "normal" : number of normal pages transferred (json-int)
 - "disk": only present if "status" is "active" and it is a block migration,
   it is a json-object with the following disk information (in bytes):
          - "transferred": amount transferred (json-int)
          - "remaining": amount remaining (json-int)
          - "total": total (json-int)
+- "params": migration capabilites state
+         - "xbzrle" : on/off (json-bool)
+- "cache": only present if "status" and XBZRLE is active.
+  It is a json-object with the following XBZRLE information:
+         - "cache-size": XBZRLE cache size
+         - "xbzrle-bytes": total XBZRLE bytes transferred
+         - "xbzrle-pages": number of XBZRLE compressed pages
+         - "cache-miss": number of cache misses
+         - "overflow": number of XBZRLE overflows
 
 Examples:
 
 1. Before the first migration
-
 -> { "execute": "query-migrate" }
-<- { "return": {} }
+<- { "return": { "params" : { "xbzrle" : "off" } } }
 
 2. Migration is done and has succeeded
 
@@ -2122,6 +2132,7 @@ Examples:
 <- {
       "return":{
          "status":"active",
+         "params" : { "xbzrle" : "off" },
          "ram":{
             "transferred":123,
             "remaining":123,
@@ -2136,6 +2147,7 @@ Examples:
 <- {
       "return":{
          "status":"active",
+         "params" : { "xbzrle" : "off" },
          "ram":{
             "total":1057024,
             "remaining":1053304,
@@ -2145,6 +2157,28 @@ Examples:
             "total":20971520,
             "remaining":20880384,
             "transferred":91136
+         }
+      }
+   }
+
+5. Migration is being performed and XBZRLE is active:
+
+-> { "execute": "query-migrate" }
+<- {
+      "return":{
+         "status":"active",
+         "params" : { "xbzrle" : "on" },
+         "ram":{
+            "total":1057024,
+            "remaining":1053304,
+            "transferred":3720
+         },
+         "cache":{
+            "cache-size": 1024
+            "xbzrle-transferred":20971520,
+            "xbzrle-pages":2444343,
+            "xbzrle-cache-miss":2244,
+            "xbzrle-overflow":34434
          }
       }
    }

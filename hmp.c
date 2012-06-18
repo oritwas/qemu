@@ -166,6 +166,19 @@ void hmp_info_migrate(Monitor *mon)
                        info->disk->total >> 10);
     }
 
+    if (info->has_cache) {
+        monitor_printf(mon, "cache size: %" PRIu64 " bytes\n",
+                       info->cache->cache_size);
+        monitor_printf(mon, "xbzrle transferred: %" PRIu64 " kbytes\n",
+                       info->cache->xbzrle_bytes >> 10);
+        monitor_printf(mon, "xbzrle pages: %" PRIu64 " pages\n",
+                       info->cache->xbzrle_pages);
+        monitor_printf(mon, "xbzrle cache miss: %" PRIu64 "\n",
+                       info->cache->xbzrle_cache_miss);
+        monitor_printf(mon, "xbzrle overflow : %" PRIu64 "\n",
+                       info->cache->xbzrle_overflow);
+    }
+
     qapi_free_MigrationInfo(info);
 }
 

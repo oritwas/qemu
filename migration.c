@@ -138,6 +138,17 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->capabilities->value->state = s->enabled_capabilities[i];
             info->capabilities->next = NULL;
         }
+
+        /* display xbzrle cache size */
+        if (migrate_use_xbzrle()) {
+            info->has_cache = true;
+            info->cache = g_malloc0(sizeof(*info->cache));
+            info->cache->cache_size = migrate_xbzrle_cache_size();
+            info->cache->xbzrle_bytes  = xbzrle_mig_bytes_transferred();
+            info->cache->xbzrle_pages  = xbzrle_mig_pages_transferred();
+            info->cache->xbzrle_cache_miss = xbzrle_mig_pages_cache_miss();
+            info->cache->xbzrle_overflow = xbzrle_mig_pages_overflow();
+        }
         break;
     case MIG_STATE_ACTIVE:
         for (i = 0; i < MIGRATION_CAPABILITY_MAX; i++) {
@@ -160,6 +171,8 @@ MigrationInfo *qmp_query_migrate(Error **errp)
         info->ram->transferred = ram_bytes_transferred();
         info->ram->remaining = ram_bytes_remaining();
         info->ram->total = ram_bytes_total();
+        info->ram->duplicate = dup_mig_pages_transferred();
+        info->ram->normal  = norm_mig_pages_transferred();
 
         if (blk_mig_active()) {
             info->has_disk = true;
@@ -167,6 +180,16 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->disk->transferred = blk_mig_bytes_transferred();
             info->disk->remaining = blk_mig_bytes_remaining();
             info->disk->total = blk_mig_bytes_total();
+        }
+
+        if (migrate_use_xbzrle()) {
+            info->has_cache = true;
+            info->cache = g_malloc0(sizeof(*info->cache));
+            info->cache->cache_size = migrate_xbzrle_cache_size();
+            info->cache->xbzrle_bytes  = xbzrle_mig_bytes_transferred();
+            info->cache->xbzrle_pages  = xbzrle_mig_pages_transferred();
+            info->cache->xbzrle_cache_miss = xbzrle_mig_pages_cache_miss();
+            info->cache->xbzrle_overflow = xbzrle_mig_pages_overflow();
         }
         break;
     case MIG_STATE_COMPLETED:
@@ -180,6 +203,32 @@ MigrationInfo *qmp_query_migrate(Error **errp)
             info->capabilities->value->capability = i;
             info->capabilities->value->state = s->enabled_capabilities[i];
             info->capabilities->next = NULL;
+        }
+
+        info->has_ram = true;
+        info->ram = g_malloc0(sizeof(*info->ram));
+        info->ram->transferred = ram_bytes_transferred();
+        info->ram->remaining = ram_bytes_remaining();
+        info->ram->total = ram_bytes_total();
+        info->ram->duplicate = dup_mig_pages_transferred();
+        info->ram->normal  = norm_mig_pages_transferred();
+
+        if (blk_mig_active()) {
+            info->has_disk = true;
+            info->disk = g_malloc0(sizeof(*info->disk));
+            info->disk->transferred = blk_mig_bytes_transferred();
+            info->disk->remaining = blk_mig_bytes_remaining();
+            info->disk->total = blk_mig_bytes_total();
+        }
+
+        if (migrate_use_xbzrle()) {
+            info->has_cache = true;
+            info->cache = g_malloc0(sizeof(*info->cache));
+            info->cache->cache_size = migrate_xbzrle_cache_size();
+            info->cache->xbzrle_bytes  = xbzrle_mig_bytes_transferred();
+            info->cache->xbzrle_pages  = xbzrle_mig_pages_transferred();
+            info->cache->xbzrle_cache_miss = xbzrle_mig_pages_cache_miss();
+            info->cache->xbzrle_overflow = xbzrle_mig_pages_overflow();
         }
 
         info->has_status = true;

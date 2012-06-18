@@ -260,10 +260,35 @@
 #
 # @total: total amount of bytes involved in the migration process
 #
-# Since: 0.14.0.
+# @duplicate: #optional, number of duplicate pages
+#
+# @normal : #optional, number of normal pages
+#
+# Since: 0.14.0, 'duplicate' and 'normal' since 1.2
 ##
 { 'type': 'MigrationStats',
-  'data': {'transferred': 'int', 'remaining': 'int', 'total': 'int' } }
+  'data': {'transferred': 'int', 'remaining': 'int', 'total': 'int', '*duplicate': 'int', '*normal': 'int' } }
+
+##
+# @CacheStats
+#
+# Detailed XBZRLE migration cache statistics
+#
+# @cache_size: XBZRLE cache size
+#
+# @xbzrle_bytes: amount of bytes already transferred to the target VM
+#
+# @xbzrle_pages: amount of pages transferred to the target VM
+#
+# @xbzrle_cache_miss: number of cache miss
+#
+# @xbzrle_overflow: number of overflows
+#
+# Since: 1.2
+##
+{ 'type': 'CacheStats',
+  'data': {'cache-size': 'int', 'xbzrle-bytes': 'int', 'xbzrle-pages': 'int',
+           'xbzrle-cache-miss': 'int', 'xbzrle-overflow': 'int' } }
 
 ##
 # @MigrationInfo
@@ -282,13 +307,18 @@
 #        status, only returned if status is 'active' and it is a block
 #        migration
 #
-# Since: 0.14.0
+# @params: #optional a list describing all the migration capabilities state
+#
+# @cache: #optional @MigrationStats containing detailed XBZRLE migration
+#         statistics
+#
+# Since: 0.14.0, 'params' and 'cache' since 1.2
 ##
 { 'type': 'MigrationInfo',
   'data': {'*status': 'str', '*ram': 'MigrationStats',
            '*disk': 'MigrationStats',
-           '*capabilities': ['MigrationCapabilityInfo']} }
-
+           '*capabilities': ['MigrationCapabilityInfo'],
+           '*cache': 'CacheStats'} }
 ##
 # @query-migrate
 #

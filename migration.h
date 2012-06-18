@@ -83,6 +83,15 @@ uint64_t ram_bytes_remaining(void);
 uint64_t ram_bytes_transferred(void);
 uint64_t ram_bytes_total(void);
 
+uint64_t dup_mig_bytes_transferred(void);
+uint64_t dup_mig_pages_transferred(void);
+uint64_t norm_mig_bytes_transferred(void);
+uint64_t norm_mig_pages_transferred(void);
+uint64_t xbzrle_mig_bytes_transferred(void);
+uint64_t xbzrle_mig_pages_transferred(void);
+uint64_t xbzrle_mig_pages_overflow(void);
+uint64_t xbzrle_mig_pages_cache_miss(void);
+
 int ram_save_live(QEMUFile *f, int stage, void *opaque);
 int ram_load(QEMUFile *f, void *opaque, int version_id);
 
