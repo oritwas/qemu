@@ -2374,3 +2374,175 @@ void vmstate_register_ram_global(MemoryRegion *mr)
 {
     vmstate_register_ram(mr, NULL);
 }
+
+/*
+  page = zrun nzrun
+       | zrun nzrun page
+
+  zrun = length
+
+  nzrun = length byte...
+
+  length = uleb128 encoded integer
+ */
+int xbzrle_encode_buffer(uint8_t *old_buf, uint8_t *new_buf, int slen,
+                         uint8_t *dst, int dlen)
+{
+    uint32_t zrun_len = 0, nzrun_len = 0;
+    int d = 0, i = 0, start;
+    long res, xor;
+    uint8_t *nzrun_start = NULL;
+
+    g_assert(!((uintptr_t)old_buf & (sizeof(long) - 1)) &&
+             !((uintptr_t)new_buf & (sizeof(long) - 1)) &&
+             !(slen & (sizeof(long) - 1)));
+
+    while (i < slen) {
+        /* overflow */
+        if (d + 2 > dlen) {
+            return -1;
+        }
+
+        /* not aligned to sizeof(long) */
+        res = (slen - i) % sizeof(long);
+        if (res) {
+            start = i;
+            while (!(old_buf[i] ^ new_buf[i]) && (i - start) <= res) {
+                zrun_len++;
+                i++;
+            }
+        }
+
+        if (zrun_len == res) {
+            while (i <= (slen - sizeof(long)) &&
+                   (*(long *)(old_buf + i)) == (*(long *)(new_buf + i))) {
+                i += sizeof(long);
+                zrun_len += sizeof(long);
+            }
+
+            /* go over the rest */
+            while (old_buf[i] == new_buf[i] && ++i <= slen) {
+                zrun_len++;
+            }
+        }
+
+        /* buffer unchanged */
+        if (zrun_len == slen) {
+            return 0;
+        }
+
+        /* skip last zero run */
+        if (i == slen + 1) {
+            return d;
+        }
+
+        d += uleb128_encode_small(dst + d, zrun_len);
+
+        /* no nzrun */
+        if (i == slen) {
+            return d;
+        }
+
+        zrun_len = 0;
+        nzrun_start = new_buf + i;
+
+        /* not aligned to sizeof(long) */
+        res = (slen - i) % sizeof(long);
+        if (res) {
+            start = i;
+            while (old_buf[i] != new_buf[i] && i - start < res) {
+                i++;
+                nzrun_len++;
+            }
+        }
+
+        if (nzrun_len == res) {
+            /* truncation to 32-bit long okay */
+            long mask = 0x0101010101010101ULL;
+            xor = *(long *)(old_buf + i) ^ *(long *)(new_buf + i);
+            printf("cont\n");
+            while (i <= (slen - sizeof(long))) {
+                if ((xor - mask) & ~xor & (mask << 7)) {
+                    /* found the end of an nzrun within the current long */
+                    while (old_buf[i] != new_buf[i] && ++i <= slen) {
+                        nzrun_len++;
+                    }
+                    break;
+                } else {
+                    i += sizeof(long);
+                    nzrun_len += sizeof(long);
+                    xor = *(long *)(old_buf + i) ^ *(long *)(new_buf + i);
+                }
+            }
+
+            while (old_buf[i] != new_buf[i] && ++i <= slen) {
+                nzrun_len++;
+            }
+        }
+
+        /* overflow */
+        if (d + nzrun_len + 2 > dlen) {
+            return -1;
+        }
+
+        d += uleb128_encode_small(dst + d, nzrun_len);
+        memcpy(dst + d, nzrun_start, nzrun_len);
+        d += nzrun_len;
+        nzrun_len = 0;
+    }
+
+    return d;
+}
+
+int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
+{
+    int i = 0, d = 0;
+    int ret;
+    uint32_t count = 0;
+
+    while (i < slen) {
+
+        /* zrun */
+        if ((slen - i) < 2 && *(src + i) & 0x80) {
+            return -1;
+        }
+
+        ret = uleb128_decode_small(src + i, &count);
+        if (ret < 0) {
+            return -1;
+        }
+        i += ret;
+        d += count;
+
+        /* overflow */
+        if (d > dlen) {
+            return -1;
+        }
+
+        /* completed decoding */
+        if (i == slen - 1) {
+            return d;
+        }
+
+        /* nzrun */
+        if ((slen - i) < 2 && *(src + i) & 0x80) {
+            return -1;
+        }
+        ret = uleb128_decode_small(src + i, &count);
+        if (ret < 0) {
+            return -1;
+        }
+        i += ret;
+
+        /* overflow */
+        if (d + count > dlen) {
+            return -1;
+        }
+
+        memcpy(dst + d , src + i, count);
+        d += count;
+        i += count;
+    }
+
+    return d;
+}
