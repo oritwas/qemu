@@ -188,7 +188,7 @@ static int ram_save_block(QEMUFile *f)
 {
     RAMBlock *block = last_block;
     ram_addr_t offset = last_offset;
-    int bytes_sent = 0;
+    int bytes_sent = -1;
     MemoryRegion *mr;
 
     if (!block)
@@ -354,8 +354,11 @@ int ram_save_live(QEMUFile *f, int stage, void *opaque)
         int bytes_sent;
 
         bytes_sent = ram_save_block(f);
-        bytes_transferred += bytes_sent;
-        if (bytes_sent == 0) { /* no more blocks */
+        /* bytes_sent 0 represent unchanged page,
+           bytes_sent -1 represent no more blocks*/
+        if (bytes_sent > 0) {
+            bytes_transferred += bytes_sent;
+        } else if (bytes_sent == -1) { /* no more blocks */
             break;
         }
     }
@@ -378,7 +381,7 @@ int ram_save_live(QEMUFile *f, int stage, void *opaque)
         int bytes_sent;
 
         /* flush all remaining blocks regardless of rate limiting */
-        while ((bytes_sent = ram_save_block(f)) != 0) {
+        while ((bytes_sent = ram_save_block(f)) != -1) {
             bytes_transferred += bytes_sent;
         }
         memory_global_dirty_log_stop();
