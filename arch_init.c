@@ -202,6 +202,64 @@ int64_t xbzrle_cache_resize(int64_t new_size)
     return pow2floor(new_size);
 }
 
+/* accounting for migration statistics */
+typedef struct AccountingInfo {
+    uint64_t dup_pages;
+    uint64_t norm_pages;
+    uint64_t xbzrle_bytes;
+    uint64_t xbzrle_pages;
+    uint64_t xbzrle_cache_miss;
+    uint64_t iterations;
+    uint64_t xbzrle_overflows;
+} AccountingInfo;
+
+static AccountingInfo acct_info;
+
+static void acct_clear(void)
+{
+    memset(&acct_info, 0, sizeof(acct_info));
+}
+
+uint64_t dup_mig_bytes_transferred(void)
+{
+    return acct_info.dup_pages * TARGET_PAGE_SIZE;
+}
+
+uint64_t dup_mig_pages_transferred(void)
+{
+    return acct_info.dup_pages;
+}
+
+uint64_t norm_mig_bytes_transferred(void)
+{
+    return acct_info.norm_pages * TARGET_PAGE_SIZE;
+}
+
+uint64_t norm_mig_pages_transferred(void)
+{
+    return acct_info.norm_pages;
+}
+
+uint64_t xbzrle_mig_bytes_transferred(void)
+{
+    return acct_info.xbzrle_bytes;
+}
+
+uint64_t xbzrle_mig_pages_transferred(void)
+{
+    return acct_info.xbzrle_pages;
+}
+
+uint64_t xbzrle_mig_pages_cache_miss(void)
+{
+    return acct_info.xbzrle_cache_miss;
+}
+
+uint64_t xbzrle_mig_pages_overflow(void)
+{
+    return acct_info.xbzrle_overflows;
+}
+
 static void save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
         int cont, int flag)
 {
@@ -236,6 +294,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
             cache_insert(XBZRLE.cache, current_addr,
                          g_memdup(current_data, TARGET_PAGE_SIZE));
         }
+        acct_info.xbzrle_cache_miss++;
         return -1;
     }
 
@@ -250,6 +309,7 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
         return 0;
     } else if (encoded_len == -1) {
         DPRINTF("Overflow\n");
+        acct_info.xbzrle_overflows++;
         /* update data in the cache */
         memcpy(prev_cached_page, current_data, TARGET_PAGE_SIZE);
         return -1;
@@ -269,7 +329,9 @@ static int save_xbzrle_page(QEMUFile *f, uint8_t *current_data,
     qemu_put_byte(f, hdr.xh_flags);
     qemu_put_be16(f, hdr.xh_len);
     qemu_put_buffer(f, XBZRLE.encoded_buf, encoded_len);
+    acct_info.xbzrle_pages++;
     bytes_sent = encoded_len + sizeof(hdr);
+    acct_info.xbzrle_bytes += bytes_sent;
 
     return bytes_sent;
 }
@@ -301,6 +363,7 @@ static int ram_save_block(QEMUFile *f, int stage)
             p = memory_region_get_ram_ptr(mr) + offset;
 
             if (is_dup_page(p)) {
+                acct_info.dup_pages++;
                 save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_COMPRESS);
                 qemu_put_byte(f, *p);
                 bytes_sent = 1;
@@ -323,6 +386,7 @@ static int ram_save_block(QEMUFile *f, int stage)
                 save_block_hdr(f, block, offset, cont, RAM_SAVE_FLAG_PAGE);
                 qemu_put_buffer(f, p, TARGET_PAGE_SIZE);
                 bytes_sent = TARGET_PAGE_SIZE;
+                acct_info.norm_pages++;
             }
 
             /* if page is unmodified, continue to the next */
@@ -449,6 +513,7 @@ int ram_save_live(QEMUFile *f, int stage, void *opaque)
                 return -1;
             }
             XBZRLE.encoded_buf = g_malloc0(TARGET_PAGE_SIZE);
+            acct_clear();
         }
 
         /* Make sure all dirty bits are set */
@@ -484,6 +549,7 @@ int ram_save_live(QEMUFile *f, int stage, void *opaque)
            bytes_sent -1 represent no more blocks*/
         if (bytes_sent > 0) {
             bytes_transferred += bytes_sent;
+            acct_info.iterations++;
         } else if (bytes_sent == -1) { /* no more blocks */
             break;
         }
