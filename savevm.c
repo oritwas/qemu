@@ -2506,11 +2506,13 @@ int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
 
         /* zrun */
         if ((slen - i) < 2) {
+            printf("exit 1: slen %d i %d\n",slen,i);
             return -1;
         }
 
         ret = uleb128_decode_small(src + i, &count);
         if (ret < 0 || (i && !count)) {
+            printf("exit 2: slen %d i %d count %d\n",slen,i,count);
             return -1;
         }
         i += ret;
@@ -2518,22 +2520,26 @@ int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
 
         /* overflow */
         if (d > dlen) {
+            printf("exit 3: slen %d i %d d %d dlen %d\n",slen,i,d,dlen);
             return -1;
         }
 
         /* nzrun */
         if ((slen - i) < 2) {
+            printf("exit 4: slen %d i %d\n",slen,i);
             return -1;
         }
 
         ret = uleb128_decode_small(src + i, &count);
         if (ret < 0 || !count) {
+            printf("exit 5: slen %d i %d ret %d count %d\n",slen,i,ret,count);
             return -1;
         }
         i += ret;
 
         /* overflow */
         if (d + count > dlen || i + count > slen) {
+            printf("exit 1: slen %d i %d d %d dlen %d count %d\n",slen,i,d,dlen,count);
             return -1;
         }
 
