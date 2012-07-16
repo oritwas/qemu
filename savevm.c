@@ -2539,7 +2539,7 @@ int xbzrle_decode_buffer(uint8_t *src, int slen, uint8_t *dst, int dlen)
 
         /* overflow */
         if (d + count > dlen || i + count > slen) {
-            printf("exit 1: slen %d i %d d %d dlen %d count %d\n",slen,i,d,dlen,count);
+            printf("exit 6: slen %d i %d d %d dlen %d count %d\n",slen,i,d,dlen,count);
             return -1;
         }
 
