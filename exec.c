@@ -2524,8 +2524,6 @@ void qemu_ram_set_idstr(ram_addr_t addr, const char *name, DeviceState *dev)
         }
     }
 
-    printf("new_block idstr %s offset %lx mr %p\n",new_block->idstr,
-           new_block->offset,new_block->mr);
 }
 
 ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
@@ -2566,9 +2564,6 @@ ram_addr_t qemu_ram_alloc_from_ptr(ram_addr_t size, void *host,
         }
     }
     new_block->length = size;
-
-    printf("qemu_ram_alloc_from_ptr size %lx mr %p\n",
-	    size,mr);
 
     QLIST_INSERT_HEAD(&ram_list.blocks, new_block, next);
 
