@@ -1256,6 +1256,8 @@ static void memory_region_add_subregion_common(MemoryRegion *mr,
 {
     MemoryRegion *other;
 
+    printf("memory_region_add_subregion_common mr %p offset %lx\n",
+	    mr,offset);
     assert(!subregion->parent);
     subregion->parent = mr;
     subregion->addr = offset;

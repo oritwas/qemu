@@ -262,6 +262,63 @@ uint64_t xbzrle_mig_pages_overflow(void)
     return acct_info.xbzrle_overflows;
 }
 
+#define MAX_ITER_LIMIT 10000
+
+#define DIRTY_LIMIT 5
+
+/* structure for dirtiness acounting */
+struct DirtyPageRate {
+    uint32_t rate;
+    uint64_t last_iter_dirty;
+};
+typedef struct DirtyPageRate DirtyPageRate;
+
+static DirtyPageRate *dirty_rates;
+
+static uint64_t get_index(uint64_t addr)
+{
+    return addr/TARGET_PAGE_SIZE;
+}
+
+static void init_dirty_rates(uint64_t size)
+{
+    dirty_rates = g_malloc0(sizeof(*dirty_rates)*size);
+}
+
+static void free_dirty_rates(void)
+{
+    g_free(dirty_rates);
+}
+
+static DirtyPageRate *get_page(uint64_t addr)
+{
+    return &dirty_rates[get_index(addr)];
+}
+
+static uint64_t get_page_rate(uint64_t addr)
+{
+    return get_page(addr)->rate;
+}
+
+static void inc_page(ram_addr_t addr)
+{
+    DirtyPageRate *page = get_page(addr);
+
+    if(page->rate && 
+       acct_info.iterations - page->last_iter_dirty > MAX_ITER_LIMIT) {
+        page->rate = 1;
+    } else {
+        page->rate++;
+    }
+
+    page->last_iter_dirty = acct_info.iterations;
+}
+
+static void dec_page(ram_addr_t addr)
+{
+    get_page(addr)->rate--;
+}
+
 static void save_block_hdr(QEMUFile *f, RAMBlock *block, ram_addr_t offset,
         int cont, int flag)
 {
@@ -347,16 +404,24 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
     int bytes_sent = -1;
     MemoryRegion *mr;
     ram_addr_t current_addr;
+    static bool first_time = true;
 
     if (!block)
         block = QLIST_FIRST(&ram_list.blocks);
 
     do {
+        current_addr = block->offset + offset;
         mr = block->mr;
         if (memory_region_get_dirty(mr, offset, TARGET_PAGE_SIZE,
                                     DIRTY_MEMORY_MIGRATION)) {
             uint8_t *p;
             int cont = (block == last_block) ? RAM_SAVE_FLAG_CONTINUE : 0;
+
+            if (!first_time) {
+                if (get_page_rate(current_addr))
+                    printf("inc page %lx rate %ld\n",current_addr,get_page_rate(current_addr));            
+                inc_page(current_addr);
+            }
 
             memory_region_reset_dirty(mr, offset, TARGET_PAGE_SIZE,
                                       DIRTY_MEMORY_MIGRATION);
@@ -369,7 +434,6 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
                 qemu_put_byte(f, *p);
                 bytes_sent = 1;
             } else if (migrate_use_xbzrle()) {
-                current_addr = block->offset + offset;
                 bytes_sent = save_xbzrle_page(f, p, current_addr, block,
                                               offset, cont, last_stage);
                 if (!last_stage) {
@@ -402,6 +466,8 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
 
     last_block = block;
     last_offset = offset;
+
+    first_time = false;
 
     return bytes_sent;
 }
@@ -475,6 +541,8 @@ static void migration_end(void)
         g_free(XBZRLE.decoded_buf);
         XBZRLE.cache = NULL;
     }
+
+    free_dirty_rates();
 }
 
 static void ram_migration_cancel(void *opaque)
@@ -493,6 +561,7 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     last_block = NULL;
     last_offset = 0;
     sort_ram_list();
+
 
     if (migrate_use_xbzrle()) {
         XBZRLE.cache = cache_init(migrate_xbzrle_cache_size() /
@@ -518,6 +587,8 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     }
 
     memory_global_dirty_log_start();
+
+    init_dirty_rates(ram_bytes_total()/TARGET_PAGE_SIZE);
 
     qemu_put_be64(f, ram_bytes_total() | RAM_SAVE_FLAG_MEM_SIZE);
 
