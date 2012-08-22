@@ -46,6 +46,9 @@ enum {
 /* Migration XBZRLE default cache size */
 #define DEFAULT_MIGRATE_CACHE_SIZE (64 * 1024 * 1024)
 
+#define DEFAULT_MIGRATE_MAX_ITER_LIMIT 100
+#define DEFAULT_MIGRATE_MAX_DIRTY_RATE_LIMIT 5
+
 static NotifierList migration_state_notifiers =
     NOTIFIER_LIST_INITIALIZER(migration_state_notifiers);
 
@@ -59,6 +62,8 @@ static MigrationState *migrate_get_current(void)
         .state = MIG_STATE_SETUP,
         .bandwidth_limit = MAX_THROTTLE,
         .xbzrle_cache_size = DEFAULT_MIGRATE_CACHE_SIZE,
+        .max_dirty_rate_limit = DEFAULT_MIGRATE_MAX_DIRTY_RATE_LIMIT,
+        .max_iter_limit = DEFAULT_MIGRATE_MAX_ITER_LIMIT
     };
 
     return &current_migration;
@@ -445,6 +450,8 @@ static MigrationState *migrate_init(const MigrationParams *params)
     int64_t bandwidth_limit = s->bandwidth_limit;
     bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
     int64_t xbzrle_cache_size = s->xbzrle_cache_size;
+    uint64_t max_dirty_rate_limit = s->max_dirty_rate_limit;
+    uint64_t max_iter_limit = s->max_iter_limit;
 
     memcpy(enabled_capabilities, s->enabled_capabilities,
            sizeof(enabled_capabilities));
@@ -455,6 +462,9 @@ static MigrationState *migrate_init(const MigrationParams *params)
     memcpy(s->enabled_capabilities, enabled_capabilities,
            sizeof(enabled_capabilities));
     s->xbzrle_cache_size = xbzrle_cache_size;
+
+    s->max_dirty_rate_limit = max_dirty_rate_limit;
+    s->max_iter_limit = max_iter_limit;
 
     s->bandwidth_limit = bandwidth_limit;
     s->state = MIG_STATE_SETUP;
@@ -590,4 +600,22 @@ int64_t migrate_xbzrle_cache_size(void)
     s = migrate_get_current();
 
     return s->xbzrle_cache_size;
+}
+
+uint64_t migrate_max_dirty_rate_limit(void)
+{
+    MigrationState *s;
+
+    s = migrate_get_current();
+
+    return s->max_dirty_rate_limit;
+}
+
+uint64_t migrate_max_iter_limit(void)
+{
+    MigrationState *s;
+
+    s = migrate_get_current();
+
+    return s->max_iter_limit;
 }

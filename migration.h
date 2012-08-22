@@ -42,6 +42,8 @@ struct MigrationState
     int64_t total_time;
     bool enabled_capabilities[MIGRATION_CAPABILITY_MAX];
     int64_t xbzrle_cache_size;
+    uint64_t max_dirty_rate_limit;
+    uint64_t max_iter_limit;
 };
 
 void process_incoming_migration(QEMUFile *f);
@@ -118,5 +120,7 @@ int migrate_use_xbzrle(void);
 int64_t migrate_xbzrle_cache_size(void);
 
 int64_t xbzrle_cache_resize(int64_t new_size);
+uint64_t migrate_max_dirty_rate_limit(void);
+uint64_t migrate_max_iter_limit(void);
 
 #endif

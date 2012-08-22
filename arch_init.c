@@ -262,9 +262,6 @@ uint64_t xbzrle_mig_pages_overflow(void)
     return acct_info.xbzrle_overflows;
 }
 
-#define MAX_ITER_LIMIT 100
-#define DIRTY_LIMIT 5
-
 /* structure for dirtiness acounting */
 struct DirtyPageRate {
     uint32_t rate;
@@ -303,8 +300,8 @@ static void inc_page(ram_addr_t addr)
 {
     DirtyPageRate *page = get_page(addr);
 
-    if(page->rate && 
-       acct_info.iterations - page->last_iter_dirty > MAX_ITER_LIMIT) {
+    if(page->rate && (acct_info.iterations - page->last_iter_dirty) >
+       migrate_max_iter_limit()) {
         page->rate = 1;
     } else {
         page->rate++;
@@ -436,7 +433,7 @@ static void walk_very_dirty_pages_list(void)
                                       DIRTY_MEMORY_MIGRATION);
         } else {
             dec_page(addr);
-            if (get_page_rate(addr) < DIRTY_LIMIT ) {
+            if (get_page_rate(addr) < migrate_max_dirty_rate_limit()) {
                 QLIST_REMOVE(very_dirty_page, next);
                 very_dirty_pages.num_pages--;
                 g_free(very_dirty_page);
@@ -489,7 +486,7 @@ static int ram_save_block(QEMUFile *f, bool last_stage)
             memory_region_reset_dirty(mr, offset, TARGET_PAGE_SIZE,
                                       DIRTY_MEMORY_MIGRATION);
 
-            if (get_page_rate(current_addr) > DIRTY_LIMIT) {
+            if (get_page_rate(current_addr) > migrate_max_dirty_rate_limit()) {
                 VeryDirtyPage *page = g_malloc(sizeof(*page));
                 page->mr = mr;
                 page->offset = offset;
