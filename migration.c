@@ -564,6 +564,44 @@ int64_t qmp_query_migrate_cache_size(Error **errp)
     return migrate_xbzrle_cache_size();
 }
 
+void qmp_migrate_set_max_dirty_rate_limit(int64_t value, Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+
+    /* Check for truncation */
+    if (value != (size_t)value) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "max dirty rate limit",
+                  "exceeding address space");
+        return;
+    }
+
+    s->max_dirty_rate_limit = value;
+}
+
+int64_t qmp_query_migrate_max_dirty_rate_limit(Error **errp)
+{
+    return migrate_max_dirty_rate_limit();
+}
+
+void qmp_migrate_set_max_iter_limit(int64_t value, Error **errp)
+{
+    MigrationState *s = migrate_get_current();
+
+    /* Check for truncation */
+    if (value != (size_t)value) {
+        error_set(errp, QERR_INVALID_PARAMETER_VALUE, "Max iterations limit",
+                  "exceeding address space");
+        return;
+    }
+
+    s->max_iter_limit = value;
+}
+
+int64_t qmp_query_migrate_max_iter_limit(Error **errp)
+{
+    return migrate_max_iter_limit();
+}
+
 void qmp_migrate_set_speed(int64_t value, Error **errp)
 {
     MigrationState *s;

@@ -1469,6 +1469,58 @@
 { 'command': 'query-migrate-cache-size', 'returns': 'int' }
 
 ##
+# @migrate-set-max-dirty-rate-limit
+#
+# Set migration maximal dirty rate limit
+#
+# @value: max dirty rate limit
+#
+# The limit can be modified before or during ongoing migration
+#
+# Returns: nothing on success
+#
+# Since: 1.3
+##
+{ 'command': 'migrate-set-max-dirty-rate-limit', 'data': {'value': 'int'} }
+
+##
+# @query-migrate-max-dirty-rate-limit
+#
+# query migration max dirty rate limit
+#
+# Returns: Migration max dirty rate limit
+#
+# Since: 1.3
+##
+{ 'command': 'query-migrate-max-dirty-rate-limit', 'returns': 'int' }
+
+##
+# @migrate-set-max-iter-limit
+#
+# Set migration max iterations limit
+#
+# @value: max iterations limit
+#
+# The limit can be modified before or during ongoing migration
+#
+# Returns: nothing on success
+#
+# Since: 1.3
+##
+{ 'command': 'migrate-set-max-iter-limit', 'data': {'value': 'int'} }
+
+##
+# @query-migrate-max-iter-limit
+#
+# query migration max iterations limit
+#
+# Returns: Migration max iterations limit
+#
+# Since: 1.3
+##
+{ 'command': 'query-migrate-max-iter-limit', 'returns': 'int' }
+
+##
 # @ObjectPropertyInfo:
 #
 # @name: the name of the property

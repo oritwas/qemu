@@ -564,6 +564,92 @@ Example:
 <- { "return": 67108864 }
 
 EQMP
+{
+        .name       = "migrate-set-max-dirty-rate-limit",
+        .args_type  = "value:o",
+        .mhandler.cmd_new = qmp_marshal_input_migrate_set_max_dirty_rate_limit,
+    },
+
+SQMP
+migrate-set-max-dirty-rate-limit
+---------------------
+
+Set max dirty rate limit for the  migration
+
+Arguments:
+
+- "value": dirty rate limit (json-int)
+
+Example:
+
+-> { "execute": "migrate-set-dirty-rate-limit", "arguments": { "value": 100 } }
+<- { "return": {} }
+
+EQMP
+    {
+        .name       = "query-migrate-max-dirty-rate-limit",
+        .args_type  = "",
+        .mhandler.cmd_new = qmp_marshal_input_query_migrate_max_dirty_rate_limit,
+    },
+
+SQMP
+query-migrate-max-dirty-rate-limit
+---------------------
+
+Show max dirty rate limit used by migration
+
+returns a json-object with the following information:
+- "value" : json-int
+
+Example:
+
+-> { "execute": "query-migrate-max-dirty-rate-limit" }
+<- { "return": 100 }
+
+EQMP
+{
+        .name       = "migrate-set-max-iter-limit",
+        .args_type  = "value:o",
+        .mhandler.cmd_new = qmp_marshal_input_migrate_set_max_iter_limit,
+    },
+
+SQMP
+migrate-max-iter-limit
+---------------------
+
+Set max iterations limit for the migration
+
+Arguments:
+
+- "value": max iterations limit (json-int)
+
+Example:
+
+-> { "execute": "migrate-set-max-iter-limit", "arguments": { "value": 536870912 } }
+<- { "return": {} }
+
+EQMP
+    {
+        .name       = "query-migrate-max-iter-limit",
+        .args_type  = "",
+        .mhandler.cmd_new = qmp_marshal_input_query_migrate_max_iter_limit,
+    },
+
+SQMP
+query-migrate-max-iter-limit
+---------------------
+
+Show max iterations limit used by the migration
+
+returns a json-object with the following information:
+- "value" : json-int
+
+Example:
+
+-> { "execute": "query-migrate-max-iter-limit" }
+<- { "return": 67108864 }
+
+EQMP
 
     {
         .name       = "migrate_set_speed",
