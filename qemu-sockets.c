@@ -24,6 +24,7 @@
 
 #include "qemu_socket.h"
 #include "qemu-common.h" /* for qemu_isdigit */
+#include "main-loop.h"
 
 #ifndef AI_ADDRCONFIG
 # define AI_ADDRCONFIG 0
@@ -209,6 +210,130 @@ listen:
     return slisten;
 }
 
+#ifdef _WIN32
+#define QEMU_SOCKET_RC_INPROGRESS(rc) \
+    ((rc) == -EINPROGRESS || rc == -EWOULDBLOCK || rc == -WSAEALREADY)
+#else
+#define QEMU_SOCKET_RC_INPROGRESS(rc) \
+    ((rc) == -EINPROGRESS)
+#endif
+
+typedef struct ConnectState
+{
+    int fd;
+    struct addrinfo *res, *e;
+    ConnectHandler *callback;
+    void *opaque;
+    Error *errp;
+} ConnectState;
+
+static ConnectState connect_state = {
+    .fd = -1,
+};
+
+#ifdef _WIN32
+#define QEMU_SOCKET_RC_INPROGRESS(rc) \
+    ((rc) == -EINPROGRESS || rc == -EWOULDBLOCK || rc == -WSAEALREADY)
+#else
+#define QEMU_SOCKET_RC_INPROGRESS(rc) \
+    ((rc) == -EINPROGRESS)
+#endif
+
+static int inet_connect_addr(struct addrinfo *addr, bool block,
+                             IOHandler *handler, bool *in_progress, Error **errp)
+{
+    char uaddr[INET6_ADDRSTRLEN + 1];
+    char uport[33];
+    int sock, rc;
+
+    if (in_progress) {
+        *in_progress = false;
+    }
+
+    if (getnameinfo((struct sockaddr *)addr->ai_addr, addr->ai_addrlen,
+                    uaddr, INET6_ADDRSTRLEN, uport, 32,
+                    NI_NUMERICHOST | NI_NUMERICSERV)) {
+        fprintf(stderr, "%s: getnameinfo: oops\n", __func__);
+        return -1;
+    }
+    sock = qemu_socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
+    if (sock < 0) {
+        fprintf(stderr, "%s: socket(%s): %s\n", __func__,
+                inet_strfamily(addr->ai_family), strerror(errno));
+        return -1;
+    }
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    if (!block) {
+        socket_set_nonblock(sock);
+    }
+    /* connect to peer */
+    do {
+        rc = 0;
+        if (connect(sock, addr->ai_addr, addr->ai_addrlen) < 0) {
+            rc = -socket_error();
+        }
+    } while (rc == -EINTR);
+
+    if (!block && QEMU_SOCKET_RC_INPROGRESS(rc)) {
+        connect_state.fd = sock;
+        qemu_set_fd_handler2(sock, NULL, NULL, handler, &connect_state);
+        if (in_progress) {
+            *in_progress = true;
+        }
+    } else if (rc < 0) {
+        closesocket(sock);
+        return -1;
+    }
+    return sock;
+}
+
+static void wait_for_connect(void *opaque)
+{
+    ConnectState *s = opaque;
+    int val = 0, rc = 0;
+    socklen_t valsize = sizeof(val);
+    bool in_progress = false;
+
+    do {
+        rc = getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
+    } while (rc == -1 && (socket_error()) == EINTR);
+
+    /* connect succeded */
+    if (!rc && !val) {
+        qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+        freeaddrinfo(s->res);
+        if (s->callback ) {
+            s->callback(rc, s->fd, s->opaque);
+        }
+        return;
+    }
+
+    if (!rc && val) {
+        rc = -val;
+    }
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+    closesocket(s->fd);
+    if (s->e != NULL && s->e->ai_next != NULL) {
+        s->e = s->e->ai_next;
+        s->fd = inet_connect_addr(s->e, false, wait_for_connect, &in_progress,
+                                  &s->errp);
+        if (in_progress) {
+            return;
+        }
+    }
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+
+    closesocket(s->fd);
+    freeaddrinfo(s->res);
+    /* connect failed */
+    if (s->callback ) {
+        s->callback(rc, s->fd, s->opaque);
+    }
+    return;
+}
+
 static struct addrinfo *inet_parse_connect_opts(QemuOpts *opts, Error **errp)
 {
     struct addrinfo ai, *res;
@@ -245,55 +370,6 @@ static struct addrinfo *inet_parse_connect_opts(QemuOpts *opts, Error **errp)
     return res;
 }
 
-#ifdef _WIN32
-#define QEMU_SOCKET_RC_INPROGRESS(rc) \
-    ((rc) == -EINPROGRESS || rc == -EWOULDBLOCK || rc == -WSAEALREADY)
-#else
-#define QEMU_SOCKET_RC_INPROGRESS(rc) \
-    ((rc) == -EINPROGRESS)
-#endif
-
-static int inet_connect_addr(struct addrinfo *addr, bool block, bool *in_progress,
-                      Error **errp)
-{
-    char uaddr[INET6_ADDRSTRLEN + 1];
-    char uport[33];
-    int sock, rc;
-
-    if (getnameinfo((struct sockaddr *)addr->ai_addr, addr->ai_addrlen,
-                    uaddr, INET6_ADDRSTRLEN, uport, 32,
-                    NI_NUMERICHOST | NI_NUMERICSERV)) {
-        fprintf(stderr, "%s: getnameinfo: oops\n", __func__);
-        return -1;
-    }
-    sock = qemu_socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
-    if (sock < 0) {
-        fprintf(stderr, "%s: socket(%s): %s\n", __func__,
-                inet_strfamily(addr->ai_family), strerror(errno));
-        return -1;
-    }
-    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
-    if (!block) {
-        socket_set_nonblock(sock);
-    }
-    /* connect to peer */
-    do {
-        rc = 0;
-        if (connect(sock, addr->ai_addr, addr->ai_addrlen) < 0) {
-            rc = -socket_error();
-        }
-    } while (rc == -EINTR);
-
-    if (!block && QEMU_SOCKET_RC_INPROGRESS(rc)) {
-        if (in_progress) {
-            *in_progress = true;
-        }
-    } else if (rc < 0) {
-        closesocket(sock);
-        return -1;
-    }
-    return sock;
-}
 
 int inet_connect_opts(QemuOpts *opts, bool *in_progress, Error **errp)
 {
@@ -306,13 +382,13 @@ int inet_connect_opts(QemuOpts *opts, bool *in_progress, Error **errp)
         return -1;
     }
 
-    if (in_progress) {
-        *in_progress = false;
-    }
-
     for (e = res; e != NULL; e = e->ai_next) {
-        sock = inet_connect_addr(e, block, in_progress, errp);
-        if (sock >= 0 || in_progress ) {
+        if (!block) {
+            connect_state.res = res;
+            connect_state.e = e;
+        }
+        sock = inet_connect_addr(e, block, wait_for_connect, in_progress, errp);
+        if (sock >= 0 || (in_progress && *in_progress)) {
             return sock;
         } 
     }
@@ -531,9 +607,8 @@ int inet_connect(const char *str, Error **errp)
     return sock;
 }
 
-
-int inet_nonblocking_connect(const char *str, bool *in_progress,
-                             Error **errp)
+int inet_nonblocking_connect(const char *str, ConnectHandler *callback,
+                             void *opaque, bool *in_progress, Error **errp)
 {
     QemuOpts *opts;
     int sock = -1;
@@ -541,6 +616,8 @@ int inet_nonblocking_connect(const char *str, bool *in_progress,
     opts = qemu_opts_create(&dummy_opts, NULL, 0, NULL);
     if (inet_parse(opts, str) == 0) {
         qemu_opt_set(opts, "block", "off");
+        connect_state.callback = callback;
+        connect_state.opaque = opaque;
         sock = inet_connect_opts(opts, in_progress, errp);
     } else {
         error_set(errp, QERR_SOCKET_CREATE_FAILED);
