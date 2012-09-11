@@ -24,6 +24,7 @@
 
 #include "qemu_socket.h"
 #include "qemu-common.h" /* for qemu_isdigit */
+#include "main-loop.h"
 
 #ifndef AI_ADDRCONFIG
 # define AI_ADDRCONFIG 0
@@ -217,11 +218,69 @@ listen:
     ((rc) == -EINPROGRESS)
 #endif
 
+/* Struct to store connect state for non blocking connect */
+typedef struct ConnectState {
+    int fd;
+    struct addrinfo *addr_list;
+    struct addrinfo *current_addr;
+    ConnectHandler *callback;
+    void *opaque;
+    Error *errp;
+} ConnectState;
+
 static int inet_connect_addr(struct addrinfo *addr, bool block,
-                             bool *in_progress)
+                             ConnectState *connect_state, bool *in_progress);
+
+static void wait_for_connect(void *opaque)
+{
+    ConnectState *s = opaque;
+    int val = 0, rc = 0;
+    socklen_t valsize = sizeof(val);
+    bool in_progress = false;
+
+    qemu_set_fd_handler2(s->fd, NULL, NULL, NULL, NULL);
+
+    do {
+        rc = getsockopt(s->fd, SOL_SOCKET, SO_ERROR, (void *) &val, &valsize);
+    } while (rc == -1 && socket_error() == EINTR);
+
+    /* update rc to contain error details */
+    if (!rc && val) {
+        rc = -val;
+    }
+
+    /* connect error */
+    if (rc < 0) {
+        closesocket(s->fd);
+        s->fd = rc;
+    }
+
+    /* try to connect to the next address on the list */
+    while (s->current_addr->ai_next != NULL && s->fd < 0) {
+        s->current_addr = s->current_addr->ai_next;
+        s->fd = inet_connect_addr(s->current_addr, false, s,
+                                  &in_progress);
+        /* connect in progress */
+        if (in_progress) {
+            return;
+        }
+    }
+
+    freeaddrinfo(s->addr_list);
+    if (s->callback) {
+        s->callback(s->fd, s->opaque);
+    }
+    return;
+}
+
+static int inet_connect_addr(struct addrinfo *addr, bool block,
+                             ConnectState *connect_state, bool *in_progress)
 {
     int sock, rc;
 
+    if (in_progress) {
+        *in_progress = false;
+    }
     sock = qemu_socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
     if (sock < 0) {
         fprintf(stderr, "%s: socket(%s): %s\n", __func__,
@@ -241,6 +300,9 @@ static int inet_connect_addr(struct addrinfo *addr, bool block,
     } while (rc == -EINTR);
 
     if (!block && QEMU_SOCKET_RC_INPROGRESS(rc)) {
+        connect_state->fd = sock;
+        qemu_set_fd_handler2(sock, NULL, NULL, wait_for_connect,
+                             connect_state);
         if (in_progress) {
             *in_progress = true;
         }
@@ -259,6 +321,7 @@ static struct addrinfo *inet_parse_connect_opts(QemuOpts *opts, Error **errp)
     const char *port;
 
     memset(&ai, 0, sizeof(ai));
+
     ai.ai_flags = AI_CANONNAME | AI_ADDRCONFIG;
     ai.ai_family = PF_UNSPEC;
     ai.ai_socktype = SOCK_STREAM;
@@ -291,7 +354,7 @@ static struct addrinfo *inet_parse_connect_opts(QemuOpts *opts, Error **errp)
 }
 
 int inet_connect_opts(QemuOpts *opts, bool block, bool *in_progress,
-                      Error **errp)
+                      Error **errp, ConnectState *connect_state)
 {
     struct addrinfo *res, *e;
     int sock = -1;
@@ -301,13 +364,15 @@ int inet_connect_opts(QemuOpts *opts, bool block, bool *in_progress,
         return -1;
     }
 
-    if (in_progress) {
-        *in_progress = false;
-    }
-
     for (e = res; e != NULL; e = e->ai_next) {
-        sock = inet_connect_addr(e, block, in_progress);
-        if (sock >= 0) {
+        if (!block) {
+            connect_state->addr_list = res;
+            connect_state->current_addr = e;
+        }
+        sock = inet_connect_addr(e, block, connect_state, in_progress);
+        if (in_progress && *in_progress) {
+            return sock;
+        } else if (sock >= 0) {
             break;
         }
     }
@@ -518,7 +583,7 @@ int inet_connect(const char *str, Error **errp)
 
     opts = qemu_opts_create(&dummy_opts, NULL, 0, NULL);
     if (inet_parse(opts, str) == 0) {
-        sock = inet_connect_opts(opts, true, NULL, errp);
+        sock = inet_connect_opts(opts, true, NULL, errp, NULL);
     } else {
         error_set(errp, QERR_SOCKET_CREATE_FAILED);
     }
@@ -526,16 +591,18 @@ int inet_connect(const char *str, Error **errp)
     return sock;
 }
 
-
-int inet_nonblocking_connect(const char *str, bool *in_progress,
-                             Error **errp)
+int inet_nonblocking_connect(const char *str, ConnectHandler *callback,
+                             void *opaque, bool *in_progress, Error **errp)
 {
     QemuOpts *opts;
     int sock = -1;
+    ConnectState *connect_state = g_malloc0(sizeof(*connect_state));
 
     opts = qemu_opts_create(&dummy_opts, NULL, 0, NULL);
     if (inet_parse(opts, str) == 0) {
-        sock = inet_connect_opts(opts, false, in_progress, errp);
+        connect_state->callback = callback;
+        connect_state->opaque = opaque;
+        sock = inet_connect_opts(opts, false, in_progress, errp, connect_state);
     } else {
         error_set(errp, QERR_SOCKET_CREATE_FAILED);
     }
