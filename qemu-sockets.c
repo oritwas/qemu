@@ -281,6 +281,7 @@ static int inet_connect_addr(struct addrinfo *addr, bool block,
     if (in_progress) {
         *in_progress = false;
     }
+
     sock = qemu_socket(addr->ai_family, addr->ai_socktype, addr->ai_protocol);
     if (sock < 0) {
         fprintf(stderr, "%s: socket(%s): %s\n", __func__,
