@@ -461,12 +461,17 @@ static int qemu_fflush(QEMUFile *f)
         return 0;
 
     if (f->is_write && f->buf_index > 0) {
-        ret = f->ops->put_buffer(f->opaque, f->buf, f->buf_offset, f->buf_index);
+        ret = f->ops->put_buffer(f->opaque, f->buf, f->buf_offset,f->buf_index);
         if (ret >= 0) {
             f->buf_offset += f->buf_index;
         }
         f->buf_index = 0;
     }
+
+    if (f->ops->flush) {
+        ret = f->ops->flush(f->opaque);
+    }
+
     return ret;
 }
 
