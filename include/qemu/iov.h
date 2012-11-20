@@ -76,11 +76,14 @@ size_t iov_memset(const struct iovec *iov, const unsigned int iov_cnt,
  * should be within the iovec, not only beginning of it.
  */
 ssize_t iov_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt,
-                      size_t offset, size_t bytes, bool do_send);
+                      size_t offset, size_t bytes, bool do_send,
+                      bool use_sendmsg);
 #define iov_recv(sockfd, iov, iov_cnt, offset, bytes) \
-  iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, false)
+    iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, false, true)
 #define iov_send(sockfd, iov, iov_cnt, offset, bytes) \
-  iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, true)
+    iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, true, true)
+#define iov_send_no_sendmsg(sockfd, iov, iov_cnt, offset, bytes) \
+    iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, true, false)
 
 /**
  * Produce a text hexdump of iovec `iov' with `iov_cnt' number of elements

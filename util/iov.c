@@ -103,9 +103,10 @@ size_t iov_size(const struct iovec *iov, const unsigned int iov_cnt)
 
 /* helper function for iov_send_recv() */
 static ssize_t
-do_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt, bool do_send)
+do_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt, bool do_send,
+             bool use_send_msg)
 {
-    if (HAS_SEND_MSG) {
+    if (HAS_SEND_MSG && use_send_msg) {
         ssize_t ret;
         struct msghdr msg;
         memset(&msg, 0, sizeof(msg));
@@ -148,7 +149,7 @@ do_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt, bool do_send)
 
 ssize_t iov_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt,
                       size_t offset, size_t bytes,
-                      bool do_send)
+                      bool do_send, bool use_send_msg)
 {
     ssize_t ret;
     unsigned si, ei;            /* start and end indexes */
@@ -189,7 +190,7 @@ ssize_t iov_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt,
         ++ei;
     }
 
-    ret = do_send_recv(sockfd, iov + si, ei - si, do_send);
+    ret = do_send_recv(sockfd, iov + si, ei - si, do_send, use_send_msg);
 
     /* Undo the changes above */
     if (offset) {
