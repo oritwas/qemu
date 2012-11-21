@@ -114,6 +114,7 @@ void qemu_announce_self(void)
 /* savevm/loadvm support */
 
 #define IO_BUF_SIZE 32768
+#define MAX_IOV_SIZE 64
 
 typedef struct AllocatedBuffer {
     uint8_t *buffer;
@@ -152,6 +153,10 @@ typedef struct QEMUFileStdio
 typedef struct QEMUFileSocket
 {
     int fd;
+
+    struct iovec iov[MAX_IOV_SIZE];
+    unsigned int iov_cnt;
+
     QEMUFile *file;
 } QEMUFileSocket;
 
@@ -285,20 +290,23 @@ static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
     QEMUFileSocket *s = opaque;
     ssize_t len;
 
-    /* create iov */
-    struct iovec iov[1];
-    unsigned int iov_cnt = 1;
+    if (s->iov_cnt == MAX_IOV_SIZE) {
+        return -1;
+    }
 
     AllocatedBuffer *allocated_buffer = g_malloc(sizeof(*allocated_buffer));
     allocated_buffer->buffer  = g_memdup(buf, size);
     QTAILQ_INSERT_TAIL(&allocated_buffers, allocated_buffer, next);
 
-    iov[0].iov_base = allocated_buffer->buffer;
-    iov[0].iov_len = size;
+    s->iov[s->iov_cnt].iov_base = (uint8_t *)buf;
+    s->iov[s->iov_cnt++].iov_len = size;
 
-    len = iov_send_no_sendmsg(s->fd, iov, iov_cnt, 0, size);
+    len = iov_send_no_sendmsg(s->fd, s->iov, s->iov_cnt, 0, size);
+
     if (len == -1) {
         len = -socket_error();
+    } else {
+        s->iov_cnt = 0;
     }
 
     QTAILQ_REMOVE(&allocated_buffers, allocated_buffer, next);
