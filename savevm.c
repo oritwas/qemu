@@ -115,6 +115,14 @@ void qemu_announce_self(void)
 
 #define IO_BUF_SIZE 32768
 
+typedef struct AllocatedBuffer {
+    uint8_t *buffer;
+    QTAILQ_ENTRY(AllocatedBuffer) next;
+} AllocatedBuffer;
+
+static QTAILQ_HEAD(, AllocatedBuffer) allocated_buffers =
+    QTAILQ_HEAD_INITIALIZER(allocated_buffers);
+
 struct QEMUFile {
     const QEMUFileOps *ops;
     void *opaque;
@@ -281,13 +289,21 @@ static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
     struct iovec iov[1];
     unsigned int iov_cnt = 1;
 
-    iov[0].iov_base = (uint8_t *)buf;
+    AllocatedBuffer *allocated_buffer = g_malloc(sizeof(*allocated_buffer));
+    allocated_buffer->buffer  = g_memdup(buf, size);
+    QTAILQ_INSERT_TAIL(&allocated_buffers, allocated_buffer, next);
+
+    iov[0].iov_base = allocated_buffer->buffer;
     iov[0].iov_len = size;
 
     len = iov_send_no_sendmsg(s->fd, iov, iov_cnt, 0, size);
     if (len == -1) {
         len = -socket_error();
     }
+
+    QTAILQ_REMOVE(&allocated_buffers, allocated_buffer, next);
+    g_free(allocated_buffer->buffer);
+    g_free(allocated_buffer);
 
     return len;
 }
