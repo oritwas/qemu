@@ -284,6 +284,22 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     return len;
 }
 
+static int socket_flush(void *opaque)
+{
+    QEMUFileSocket *s = opaque;
+    ssize_t len;
+
+    len = iov_send_no_sendmsg(s->fd, s->iov, s->iov_cnt, 0,
+                              iov_size(s->iov, s->iov_cnt));
+    if (len == -1) {
+        len = -socket_error();
+    } else {
+        s->iov_cnt = 0;
+    }
+
+    return len;
+}
+
 static int socket_put_buffer_no_copy(void *opaque, const uint8_t *buf,
                                      int64_t pos, int size)
 {
@@ -294,9 +310,6 @@ static int socket_put_buffer_no_copy(void *opaque, const uint8_t *buf,
         return -1;
     }
 
-    s->iov[s->iov_cnt].iov_base = (uint8_t *)buf;
-    s->iov[s->iov_cnt++].iov_len = size;
-
     len = iov_send_no_sendmsg(s->fd, s->iov, s->iov_cnt, 0, size);
 
     if (len == -1) {
@@ -304,7 +317,12 @@ static int socket_put_buffer_no_copy(void *opaque, const uint8_t *buf,
     } else {
         s->iov_cnt = 0;
     }
-    return len;
+
+    if (s->iov_cnt == MAX_IOV_SIZE) {
+        return socket_flush(opaque);
+    }
+
+    return 0;
 }
 
 static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
@@ -318,11 +336,6 @@ static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
 
     len = socket_put_buffer_no_copy(opaque, allocated_buffer->buffer, pos,
                                     size);
-
-    QTAILQ_REMOVE(&allocated_buffers, allocated_buffer, next);
-    g_free(allocated_buffer->buffer);
-    g_free(allocated_buffer);
-
     return len;
 }
 
