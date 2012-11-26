@@ -69,6 +69,7 @@ typedef int64_t (QEMUFileGetRateLimit)(void *opaque);
 
 typedef struct QEMUFileOps {
     QEMUFilePutBufferFunc *put_buffer;
+    QEMUFilePutBufferFunc *put_buffer_no_copy;
     QEMUFileGetBufferFunc *get_buffer;
     QEMUFileFlushFunc *flush;
     QEMUFileCloseFunc *close;
@@ -87,6 +88,7 @@ QEMUFile *qemu_popen_cmd(const char *command, const char *mode);
 int qemu_get_fd(QEMUFile *f);
 int qemu_fclose(QEMUFile *f);
 void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size);
+void qemu_put_buffer_no_copy(QEMUFile *f, const uint8_t *buf, int size);
 void qemu_put_byte(QEMUFile *f, int v);
 int qemu_fflush(QEMUFile *f);
 

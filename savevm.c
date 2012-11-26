@@ -284,8 +284,8 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     return len;
 }
 
-static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
-                             int size)
+static int socket_put_buffer_no_copy(void *opaque, const uint8_t *buf,
+                                     int64_t pos, int size)
 {
     QEMUFileSocket *s = opaque;
     ssize_t len;
@@ -293,10 +293,6 @@ static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
     if (s->iov_cnt == MAX_IOV_SIZE) {
         return -1;
     }
-
-    AllocatedBuffer *allocated_buffer = g_malloc(sizeof(*allocated_buffer));
-    allocated_buffer->buffer  = g_memdup(buf, size);
-    QTAILQ_INSERT_TAIL(&allocated_buffers, allocated_buffer, next);
 
     s->iov[s->iov_cnt].iov_base = (uint8_t *)buf;
     s->iov[s->iov_cnt++].iov_len = size;
@@ -308,6 +304,20 @@ static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
     } else {
         s->iov_cnt = 0;
     }
+    return len;
+}
+
+static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos,
+                             int size)
+{
+    ssize_t len;
+
+    AllocatedBuffer *allocated_buffer = g_malloc(sizeof(*allocated_buffer));
+    allocated_buffer->buffer  = g_memdup(buf, size);
+    QTAILQ_INSERT_TAIL(&allocated_buffers, allocated_buffer, next);
+
+    len = socket_put_buffer_no_copy(opaque, allocated_buffer->buffer, pos,
+                                    size);
 
     QTAILQ_REMOVE(&allocated_buffers, allocated_buffer, next);
     g_free(allocated_buffer->buffer);
@@ -470,6 +480,7 @@ static const QEMUFileOps socket_read_ops = {
     .get_fd =     socket_get_fd,
     .get_buffer = socket_get_buffer,
     .put_buffer = socket_put_buffer,
+    .put_buffer_no_copy = socket_put_buffer_no_copy,
     .close =      socket_close
 };
 
@@ -667,6 +678,31 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
     if (ret >= 0) {
         f->buf_offset += size;
     } else {
+        qemu_file_set_error(f, ret);
+    }
+}
+
+void qemu_put_buffer_no_copy(QEMUFile *f, const uint8_t *buf, int size)
+{
+    int ret;
+
+    if (f->last_error) {
+        return;
+    }
+
+    if (f->is_write == 0 && f->buf_index > 0) {
+        fprintf(stderr,
+                "Attempted to write to buffer while read buffer is not empty\n");
+        abort();
+    }
+
+    if (!f->ops->put_buffer_no_copy) {
+        return;
+    }
+
+    f->is_write = 1;
+    ret = f->ops->put_buffer_no_copy(f->opaque, buf, f->buf_offset, size);
+    if (ret < 0) {
         qemu_file_set_error(f, ret);
     }
 }
