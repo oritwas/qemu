@@ -279,9 +279,11 @@ bool tcg_enabled(void);
 
 void cpu_exec_init_all(void);
 
+typedef struct Error Error;
 /* CPU save/load.  */
 void cpu_save(QEMUFile *f, void *opaque);
-int cpu_load(QEMUFile *f, void *opaque, int version_id);
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error **errp);
 
 /* Unblock cpu */
 void qemu_cpu_kick_self(void);

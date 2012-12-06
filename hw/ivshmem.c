@@ -597,7 +597,7 @@ static void ivshmem_save(QEMUFile* f, void *opaque)
 
 }
 
-static int ivshmem_load(QEMUFile* f, void *opaque, int version_id)
+static int ivshmem_load(QEMUFile *f, void *opaque, int version_id, Error **errp)
 {
     IVSHMEM_DPRINTF("ivshmem_load\n");
 

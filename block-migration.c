@@ -635,7 +635,7 @@ static uint64_t block_save_pending(QEMUFile *f, void *opaque, uint64_t max_size)
     return get_remaining_dirty();
 }
 
-static int block_load(QEMUFile *f, void *opaque, int version_id)
+static int block_load(QEMUFile *f, void *opaque, int version_id, Error **errp)
 {
     static int banner_printed;
     int len, flags;

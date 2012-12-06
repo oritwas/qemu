@@ -331,7 +331,8 @@ static void virtio_balloon_save(QEMUFile *f, void *opaque)
     qemu_put_be32(f, s->actual);
 }
 
-static int virtio_balloon_load(QEMUFile *f, void *opaque, int version_id)
+static int virtio_balloon_load(QEMUFile *f, void *opaque, int version_id,
+                               Error **errp)
 {
     VirtIOBalloon *s = opaque;
     int ret;

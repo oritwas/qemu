@@ -188,7 +188,8 @@ static void load_fpu(QEMUFile *f, CPUMIPSFPUContext *fpu)
     qemu_get_be32s(f, &fpu->fcr31);
 }
 
-int cpu_load(QEMUFile *f, void *opaque, int version_id)
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error *errp)
 {
     CPUMIPSState *env = opaque;
     int i;

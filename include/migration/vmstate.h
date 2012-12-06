@@ -26,8 +26,12 @@
 #ifndef QEMU_VMSTATE_H
 #define QEMU_VMSTATE_H 1
 
+#include "error.h"
+
 typedef void SaveStateHandler(QEMUFile *f, void *opaque);
-typedef int LoadStateHandler(QEMUFile *f, void *opaque, int version_id);
+
+typedef int LoadStateHandler(QEMUFile *f, void *opaque, int version_id,
+                             Error **errp);
 
 typedef struct SaveVMHandlers {
     void (*set_params)(const MigrationParams *params, void * opaque);

@@ -720,7 +720,8 @@ static int fetch_active_ports_list(QEMUFile *f, int version_id,
     return 0;
 }
 
-static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id)
+static int virtio_serial_load(QEMUFile *f, void *opaque, int version_id,
+                              Error **errp)
 {
     VirtIOSerial *s = opaque;
     uint32_t max_nr_ports, nr_active_ports, ports_map;

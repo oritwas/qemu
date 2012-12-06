@@ -237,7 +237,8 @@ static void apic_reset_common(DeviceState *d)
 }
 
 /* This function is only used for old state version 1 and 2 */
-static int apic_load_old(QEMUFile *f, void *opaque, int version_id)
+static int apic_load_old(QEMUFile *f, void *opaque, int version_id,
+                         Error **errp)
 {
     APICCommonState *s = opaque;
     APICCommonClass *info = APIC_COMMON_GET_CLASS(s);

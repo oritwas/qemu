@@ -114,7 +114,8 @@ void cpu_save(QEMUFile *f, void *opaque)
     }
 }
 
-int cpu_load(QEMUFile *f, void *opaque, int version_id)
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error **errp)
 {
     CPUARMState *env = (CPUARMState *)opaque;
     int i;

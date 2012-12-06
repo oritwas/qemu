@@ -1416,7 +1416,7 @@ int vmstate_load_state(QEMUFile *f, const VMStateDescription *vmsd,
         return -EINVAL;
     }
     if  (version_id < vmsd->minimum_version_id) {
-        return vmsd->load_state_old(f, opaque, version_id);
+        return vmsd->load_state_old(f, opaque, version_id, NULL);
     }
     if (vmsd->pre_load) {
         int ret = vmsd->pre_load(opaque);
@@ -1537,7 +1537,7 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
 static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
 {
     if (!se->vmsd) {         /* Old style */
-        return se->ops->load_state(f, se->opaque, version_id);
+        return se->ops->load_state(f, se->opaque, version_id, NULL);
     }
     return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
 }

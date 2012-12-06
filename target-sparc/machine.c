@@ -109,7 +109,8 @@ void cpu_save(QEMUFile *f, void *opaque)
 #endif
 }
 
-int cpu_load(QEMUFile *f, void *opaque, int version_id)
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error **errp)
 {
     CPUSPARCState *env = opaque;
     int i;

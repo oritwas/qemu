@@ -583,7 +583,8 @@ static void virtio_scsi_save(QEMUFile *f, void *opaque)
     virtio_save(&s->vdev, f);
 }
 
-static int virtio_scsi_load(QEMUFile *f, void *opaque, int version_id)
+static int virtio_scsi_load(QEMUFile *f, void *opaque, int version_id,
+                            Error **errp)
 {
     VirtIOSCSI *s = opaque;
     int ret;

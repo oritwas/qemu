@@ -208,7 +208,8 @@ static const VMStateDescription vmstate_pit_channel = {
     }
 };
 
-static int pit_load_old(QEMUFile *f, void *opaque, int version_id)
+static int pit_load_old(QEMUFile *f, void *opaque, int version_id,
+                        Error **errp)
 {
     PITCommonState *pit = opaque;
     PITCommonClass *c = PIT_COMMON_GET_CLASS(pit);

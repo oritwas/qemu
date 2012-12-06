@@ -151,7 +151,8 @@ static void i440fx_write_config(PCIDevice *dev,
     }
 }
 
-static int i440fx_load_old(QEMUFile* f, void *opaque, int version_id)
+static int i440fx_load_old(QEMUFile *f, void *opaque, int version_id,
+                           Error **errp)
 {
     PCII440FXState *d = opaque;
     int ret, i;

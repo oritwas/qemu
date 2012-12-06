@@ -120,7 +120,8 @@ static void virtio_rng_save(QEMUFile *f, void *opaque)
     virtio_save(&vrng->vdev, f);
 }
 
-static int virtio_rng_load(QEMUFile *f, void *opaque, int version_id)
+static int virtio_rng_load(QEMUFile *f, void *opaque, int version_id,
+                           Error **errp)
 {
     VirtIORNG *vrng = opaque;
 

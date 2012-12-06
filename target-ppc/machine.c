@@ -87,7 +87,8 @@ void cpu_save(QEMUFile *f, void *opaque)
     qemu_put_sbe32(f, 0);
 }
 
-int cpu_load(QEMUFile *f, void *opaque, int version_id)
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error *errp)
 {
     CPUPPCState *env = (CPUPPCState *)opaque;
     unsigned int i, j;

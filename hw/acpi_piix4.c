@@ -221,7 +221,8 @@ static const VMStateDescription vmstate_pci_status = {
     }
 };
 
-static int acpi_load_old(QEMUFile *f, void *opaque, int version_id)
+static int acpi_load_old(QEMUFile *f, void *opaque, int version_id,
+                         Error **errp)
 {
     PIIX4PMState *s = opaque;
     int ret, i;

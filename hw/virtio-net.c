@@ -1151,7 +1151,8 @@ static void virtio_net_save(QEMUFile *f, void *opaque)
     }
 }
 
-static int virtio_net_load(QEMUFile *f, void *opaque, int version_id)
+static int virtio_net_load(QEMUFile *f, void *opaque, int version_id,
+                           Error **errp)
 {
     VirtIONet *n = opaque;
     int ret, i, link_down;

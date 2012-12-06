@@ -197,7 +197,8 @@ static void slirp_init_once(void)
 }
 
 static void slirp_state_save(QEMUFile *f, void *opaque);
-static int slirp_state_load(QEMUFile *f, void *opaque, int version_id);
+static int slirp_state_load(QEMUFile *f, void *opaque, int version_id,
+                            Error **errp);
 
 Slirp *slirp_init(int restricted, struct in_addr vnetwork,
                   struct in_addr vnetmask, struct in_addr vhost,
@@ -1094,7 +1095,8 @@ static void slirp_bootp_load(QEMUFile *f, Slirp *slirp)
     }
 }
 
-static int slirp_state_load(QEMUFile *f, void *opaque, int version_id)
+static int slirp_state_load(QEMUFile *f, void *opaque, int version_id,
+                            Error **errp)
 {
     Slirp *slirp = opaque;
     struct ex_list *ex_ptr;

@@ -516,7 +516,8 @@ void cpu_save(QEMUFile *f, void *opaque)
     vmstate_save_state(f, &vmstate_cpu, opaque);
 }
 
-int cpu_load(QEMUFile *f, void *opaque, int version_id)
+int cpu_load(QEMUFile *f, void *opaque, int version_id,
+             Error **errp)
 {
     return vmstate_load_state(f, &vmstate_cpu, opaque, version_id);
 }
