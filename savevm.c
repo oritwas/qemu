@@ -1534,10 +1534,11 @@ void vmstate_save_state(QEMUFile *f, const VMStateDescription *vmsd,
     vmstate_subsection_save(f, vmsd, opaque);
 }
 
-static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id)
+static int vmstate_load(QEMUFile *f, SaveStateEntry *se, int version_id,
+                        Error **errp)
 {
     if (!se->vmsd) {         /* Old style */
-        return se->ops->load_state(f, se->opaque, version_id, NULL);
+        return se->ops->load_state(f, se->opaque, version_id, errp);
     }
     return vmstate_load_state(f, se->vmsd, se->opaque, version_id);
 }
@@ -1944,6 +1945,7 @@ int qemu_loadvm_state(QEMUFile *f)
     uint8_t section_type;
     unsigned int v;
     int ret;
+    Error *error = NULL;
 
     if (qemu_savevm_state_blocked(NULL)) {
         return -EINVAL;
@@ -2002,7 +2004,11 @@ int qemu_loadvm_state(QEMUFile *f)
             le->version_id = version_id;
             QLIST_INSERT_HEAD(&loadvm_handlers, le, entry);
 
-            ret = vmstate_load(f, le->se, le->version_id);
+            ret = vmstate_load(f, le->se, le->version_id, &error);
+            if (error_is_set(&error)) {
+                fprintf(stderr, "%s\n", error_get_pretty(error));
+                goto out;
+            }
             if (ret < 0) {
                 fprintf(stderr, "qemu: warning: error while loading state for instance 0x%x of device '%s'\n",
                         instance_id, idstr);
@@ -2024,7 +2030,11 @@ int qemu_loadvm_state(QEMUFile *f)
                 goto out;
             }
 
-            ret = vmstate_load(f, le->se, le->version_id);
+            ret = vmstate_load(f, le->se, le->version_id, &error);
+            if (error_is_set(&error)) {
+                fprintf(stderr, "%s\n", error_get_pretty(error));
+                goto out;
+            }
             if (ret < 0) {
                 fprintf(stderr, "qemu: warning: error while loading state section id %d\n",
                         section_id);
