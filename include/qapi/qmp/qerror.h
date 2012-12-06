@@ -165,8 +165,20 @@ void assert_no_error(Error *err);
 #define QERR_MIGRATION_ACTIVE \
     ERROR_CLASS_GENERIC_ERROR, "There's a migration process in progress"
 
+#define QERR_MIGRATION_BLOCK_NOT_FOUND \
+    ERROR_CLASS_GENERIC_ERROR, "Migration: Block %s not found"
+
+#define QERR_MIGRATION_EXPECTED_BLOCK_ID \
+    ERROR_CLASS_GENERIC_ERROR, "Migration: expexted block id"
+
+#define QERR_MIGRATION_MISMATCH_LENGTH \
+    ERROR_CLASS_GENERIC_ERROR, "Mismatch block %s length %lu recieved %lu"
+
 #define QERR_MIGRATION_NOT_SUPPORTED \
     ERROR_CLASS_GENERIC_ERROR, "State blocked by non-migratable device '%s'"
+
+#define QERR_MIGRATION_UNKNOWN_RAMBLOCK \
+    ERROR_CLASS_GENERIC_ERROR, "Migration: unknow ramblock %s"
 
 #define QERR_MISSING_PARAMETER \
     ERROR_CLASS_GENERIC_ERROR, "Parameter '%s' is missing"

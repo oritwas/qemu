@@ -738,7 +738,8 @@ static int load_xbzrle(QEMUFile *f, ram_addr_t addr, void *host)
 
 static inline void *host_from_stream_offset(QEMUFile *f,
                                             ram_addr_t offset,
-                                            int flags)
+                                            int flags,
+                                            Error **errp)
 {
     static RAMBlock *block = NULL;
     char id[256];
@@ -746,7 +747,7 @@ static inline void *host_from_stream_offset(QEMUFile *f,
 
     if (flags & RAM_SAVE_FLAG_CONTINUE) {
         if (!block) {
-            fprintf(stderr, "Ack, bad migration stream!\n");
+            error_set(errp, QERR_MIGRATION_EXPECTED_BLOCK_ID);
             return NULL;
         }
 
@@ -762,7 +763,7 @@ static inline void *host_from_stream_offset(QEMUFile *f,
             return memory_region_get_ram_ptr(block->mr) + offset;
     }
 
-    fprintf(stderr, "Can't find block %s!\n", id);
+    error_set(errp, QERR_MIGRATION_BLOCK_NOT_FOUND, id);
     return NULL;
 }
 
@@ -804,6 +805,8 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                     QTAILQ_FOREACH(block, &ram_list.blocks, next) {
                         if (!strncmp(id, block->idstr, sizeof(id))) {
                             if (block->length != length) {
+                                error_set(errp, QERR_MIGRATION_MISMATCH_LENGTH,
+                                          id, block->length, length);
                                 ret =  -EINVAL;
                                 goto done;
                             }
@@ -814,6 +817,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                     if (!block) {
                         fprintf(stderr, "Unknown ramblock \"%s\", cannot "
                                 "accept migration\n", id);
+                        error_set(errp, QERR_MIGRATION_UNKNOWN_RAMBLOCK, id);
                         ret = -EINVAL;
                         goto done;
                     }
@@ -827,7 +831,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
             void *host;
             uint8_t ch;
 
-            host = host_from_stream_offset(f, addr, flags);
+            host = host_from_stream_offset(f, addr, flags, errp);
             if (!host) {
                 return -EINVAL;
             }
@@ -844,7 +848,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         } else if (flags & RAM_SAVE_FLAG_PAGE) {
             void *host;
 
-            host = host_from_stream_offset(f, addr, flags);
+            host = host_from_stream_offset(f, addr, flags, errp);
             if (!host) {
                 return -EINVAL;
             }
