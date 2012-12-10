@@ -867,6 +867,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         }
         error = qemu_file_get_error(f);
         if (error) {
+            fprintf(stderr, "File error %s\n", strerror(error));
             ret = error;
             goto done;
         }

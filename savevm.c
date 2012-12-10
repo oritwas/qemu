@@ -2036,8 +2036,10 @@ int qemu_loadvm_state(QEMUFile *f)
                 goto out;
             }
             if (ret < 0) {
-                fprintf(stderr, "qemu: warning: error while loading state section id %d\n",
-                        section_id);
+                fprintf(stderr,
+                        "qemu: warning: error while loading state for %s "
+                        "section id %d\n",
+                        idstr, section_id);
                 goto out;
             }
             break;
