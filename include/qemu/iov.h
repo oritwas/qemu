@@ -82,6 +82,18 @@ ssize_t iov_send_recv(int sockfd, struct iovec *iov, unsigned iov_cnt,
 #define iov_send(sockfd, iov, iov_cnt, offset, bytes) \
   iov_send_recv(sockfd, iov, iov_cnt, offset, bytes, true)
 
+/*
+ * writes iovcnt buffers of data described by iov to the file associated with
+ * the file descriptor fd.
+ *
+ * @fd - file descriptor
+ * @iov - iov to write
+ * @invcnt - number of buffers to write
+ *
+ * @return - number of bytes return or -1 on error
+ */
+ssize_t iov_writev(int fd, struct iovec *iov, unsigned iov_cnt);
+
 /**
  * Produce a text hexdump of iovec `iov' with `iov_cnt' number of elements
  * in file `fp', prefixing each line with `prefix' and processing not more
