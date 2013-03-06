@@ -629,6 +629,22 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
 {
     int l;
 
+    while (size > 0) {
+        l = IO_BUF_SIZE - f->buf_index;
+        if (l > size) {
+            l = size;
+        }
+        memcpy(f->buf + f->buf_index, buf, l);
+        f->buf_index += l;
+        f->is_write = 1;
+        qemu_put_buffer_no_copy(f, f->buf + (f->buf_index - l), l);
+        buf += l;
+        size -= l;
+    }
+}
+
+void qemu_put_buffer_no_copy(QEMUFile *f, const uint8_t *buf, int size)
+{
     if (f->last_error) {
         return;
     }
@@ -639,24 +655,14 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
         abort();
     }
 
-    while (size > 0) {
-        l = IO_BUF_SIZE - f->buf_index;
-        if (l > size)
-            l = size;
-        memcpy(f->buf + f->buf_index, buf, l);
-        f->iov[f->iovcnt].iov_base = f->buf + f->buf_index;
-        f->iov[f->iovcnt++].iov_len = l;
-        f->is_write = 1;
-        f->buf_index += l;
-        f->bytes_xfer += l;
-        buf += l;
-        size -= l;
-        if (f->buf_index >= IO_BUF_SIZE || f->iovcnt >= MAX_IOV_SIZE) {
-            qemu_fflush(f);
-            if (qemu_file_get_error(f)) {
-                break;
-            }
-        }
+    f->iov[f->iovcnt].iov_base = (uint8_t *)buf;
+    f->iov[f->iovcnt++].iov_len = size;
+
+    f->is_write = 1;
+    f->bytes_xfer += size;
+
+    if (f->buf_index >= IO_BUF_SIZE || f->iovcnt >= MAX_IOV_SIZE) {
+        qemu_fflush(f);
     }
 }
 
