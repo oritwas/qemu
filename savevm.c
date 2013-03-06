@@ -799,22 +799,26 @@ void qemu_file_reset_rate_limit(QEMUFile *f)
 
 void qemu_put_be16(QEMUFile *f, unsigned int v)
 {
-    qemu_put_byte(f, v >> 8);
-    qemu_put_byte(f, v);
+    uint16_t p;
+    cpu_to_be16wu(&p, v);
+
+    qemu_put_buffer(f, (uint8_t *)&p, sizeof(p));
 }
 
 void qemu_put_be32(QEMUFile *f, unsigned int v)
 {
-    qemu_put_byte(f, v >> 24);
-    qemu_put_byte(f, v >> 16);
-    qemu_put_byte(f, v >> 8);
-    qemu_put_byte(f, v);
+    uint32_t p;
+    cpu_to_be32wu(&p, v);
+
+    qemu_put_buffer(f, (uint8_t *)&p, sizeof(p));
 }
 
 void qemu_put_be64(QEMUFile *f, uint64_t v)
 {
-    qemu_put_be32(f, v >> 32);
-    qemu_put_be32(f, v);
+    uint64_t p;
+    cpu_to_be64wu(&p, v);
+
+    qemu_put_buffer(f, (uint8_t *)&p, sizeof(p));
 }
 
 unsigned int qemu_get_be16(QEMUFile *f)
