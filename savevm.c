@@ -114,6 +114,7 @@ void qemu_announce_self(void)
 /* savevm/loadvm support */
 
 #define IO_BUF_SIZE 32768
+#define MAX_IOV_SIZE 64
 
 struct QEMUFile {
     const QEMUFileOps *ops;
@@ -128,6 +129,9 @@ struct QEMUFile {
     int buf_index;
     int buf_size; /* 0 when writing */
     uint8_t buf[IO_BUF_SIZE];
+
+    struct iovec iov[MAX_IOV_SIZE];
+    unsigned int iovcnt;
 
     int last_error;
 };
@@ -546,6 +550,7 @@ static void qemu_fflush(QEMUFile *f)
             f->pos += f->buf_index;
         }
         f->buf_index = 0;
+        f->iovcnt = 0;
     }
     if (ret < 0) {
         qemu_file_set_error(f, ret);
@@ -638,12 +643,14 @@ void qemu_put_buffer(QEMUFile *f, const uint8_t *buf, int size)
         if (l > size)
             l = size;
         memcpy(f->buf + f->buf_index, buf, l);
+        f->iov[f->iovcnt].iov_base = f->buf + f->buf_index;
+        f->iov[f->iovcnt++].iov_len = l;
         f->is_write = 1;
         f->buf_index += l;
         f->bytes_xfer += l;
         buf += l;
         size -= l;
-        if (f->buf_index >= IO_BUF_SIZE) {
+        if (f->buf_index >= IO_BUF_SIZE || f->iovcnt >= MAX_IOV_SIZE) {
             qemu_fflush(f);
             if (qemu_file_get_error(f)) {
                 break;
@@ -667,8 +674,10 @@ void qemu_put_byte(QEMUFile *f, int v)
     f->buf[f->buf_index++] = v;
     f->is_write = 1;
     f->bytes_xfer += 1;
+    f->iov[f->iovcnt].iov_base = f->buf + (f->buf_index - 1);
+    f->iov[f->iovcnt++].iov_len = 1;
 
-    if (f->buf_index >= IO_BUF_SIZE) {
+    if (f->buf_index >= IO_BUF_SIZE || f->iovcnt >= MAX_IOV_SIZE) {
         qemu_fflush(f);
     }
 }
