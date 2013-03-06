@@ -297,7 +297,7 @@ static int stdio_fclose(void *opaque)
     QEMUFileStdio *s = opaque;
     int ret = 0;
 
-    if (s->file->ops->put_buffer) {
+    if (s->file->ops->writev_buffer) {
         int fd = fileno(s->stdio_file);
         struct stat st;
 
@@ -534,18 +534,19 @@ static void qemu_file_set_error(QEMUFile *f, int ret)
     }
 }
 
-/** Flushes QEMUFile buffer
+/**
+ * Flushes QEMUFile iovec
  *
  */
 static void qemu_fflush(QEMUFile *f)
 {
     int ret = 0;
 
-    if (!f->ops->put_buffer) {
+    if (!f->ops->writev_buffer) {
         return;
     }
-    if (f->is_write && f->buf_index > 0) {
-        ret = f->ops->put_buffer(f->opaque, f->buf, f->pos, f->buf_index);
+    if (f->is_write && f->iovcnt > 0) {
+        ret = f->ops->writev_buffer(f->opaque, f->iov, f->iovcnt);
         if (ret >= 0) {
             f->pos += f->buf_index;
         }
