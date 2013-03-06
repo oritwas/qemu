@@ -39,6 +39,7 @@
 #include "qmp-commands.h"
 #include "trace.h"
 #include "qemu/bitops.h"
+#include "qemu/iov.h"
 
 #define SELF_ANNOUNCE_ROUNDS 5
 
@@ -169,6 +170,18 @@ static void coroutine_fn yield_until_fd_readable(int fd)
     data.fd = fd;
     qemu_set_fd_handler(fd, fd_coroutine_enter, NULL, &data);
     qemu_coroutine_yield();
+}
+
+static int socket_writev_buffer(void *opaque, struct iovec *iov, int iovcnt)
+{
+    QEMUFileSocket *s = opaque;
+    ssize_t len;
+
+    len = iov_writev(s->fd, iov, iovcnt);
+    if (len < iov_size(iov, iovcnt)) {
+        len = -socket_error();
+    }
+    return len;
 }
 
 static int socket_get_fd(void *opaque)
@@ -387,6 +400,7 @@ static const QEMUFileOps socket_read_ops = {
 static const QEMUFileOps socket_write_ops = {
     .get_fd =     socket_get_fd,
     .put_buffer = socket_put_buffer,
+    .writev_buffer = socket_writev_buffer,
     .close =      socket_close
 };
 
