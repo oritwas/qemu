@@ -218,18 +218,6 @@ static int socket_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
     return len;
 }
 
-static int socket_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, int size)
-{
-    QEMUFileSocket *s = opaque;
-    ssize_t len;
-
-    len = qemu_send_full(s->fd, buf, size, 0);
-    if (len < size) {
-        len = -socket_error();
-    }
-    return len;
-}
-
 static int socket_close(void *opaque)
 {
     QEMUFileSocket *s = opaque;
@@ -248,12 +236,6 @@ static int stdio_get_fd(void *opaque)
 static int stdio_writev_buffer(void *opaque, struct iovec *iov, int iovcnt)
 {
     return iov_writev(stdio_get_fd(opaque), iov, iovcnt);
-}
-
-static int stdio_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, int size)
-{
-    QEMUFileStdio *s = opaque;
-    return fwrite(buf, 1, size, s->stdio_file);
 }
 
 static int stdio_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
@@ -329,7 +311,6 @@ static const QEMUFileOps stdio_pipe_read_ops = {
 
 static const QEMUFileOps stdio_pipe_write_ops = {
     .get_fd =     stdio_get_fd,
-    .put_buffer = stdio_put_buffer,
     .writev_buffer = stdio_writev_buffer,
     .close =      stdio_pclose
 };
@@ -369,7 +350,6 @@ static const QEMUFileOps stdio_file_read_ops = {
 
 static const QEMUFileOps stdio_file_write_ops = {
     .get_fd =     stdio_get_fd,
-    .put_buffer = stdio_put_buffer,
     .close =      stdio_fclose
 };
 
@@ -409,7 +389,6 @@ static const QEMUFileOps socket_read_ops = {
 
 static const QEMUFileOps socket_write_ops = {
     .get_fd =     socket_get_fd,
-    .put_buffer = socket_put_buffer,
     .writev_buffer = socket_writev_buffer,
     .close =      socket_close
 };
@@ -475,13 +454,6 @@ static int block_writev_buffer(void *opaque, struct iovec *iov, int iovcnt)
     return size;
 }
 
-static int block_put_buffer(void *opaque, const uint8_t *buf,
-                           int64_t pos, int size)
-{
-    bdrv_save_vmstate(opaque, buf, pos, size);
-    return size;
-}
-
 static int block_get_buffer(void *opaque, uint8_t *buf, int64_t pos, int size)
 {
     return bdrv_load_vmstate(opaque, buf, pos, size);
@@ -498,7 +470,6 @@ static const QEMUFileOps bdrv_read_ops = {
 };
 
 static const QEMUFileOps bdrv_write_ops = {
-    .put_buffer = block_put_buffer,
     .writev_buffer = block_writev_buffer,
     .close =      bdrv_fclose
 };

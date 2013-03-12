@@ -24,13 +24,6 @@
 #ifndef QEMU_FILE_H
 #define QEMU_FILE_H 1
 
-/* This function writes a chunk of data to a file at the given position.
- * The pos argument can be ignored if the file is only being used for
- * streaming.  The handler should try to write all of the data it can.
- */
-typedef int (QEMUFilePutBufferFunc)(void *opaque, const uint8_t *buf,
-                                    int64_t pos, int size);
-
 /* Read a chunk of data from a file at the given position.  The pos argument
  * can be ignored if the file is only be used for streaming.  The number of
  * bytes actually read should be returned.
@@ -58,7 +51,6 @@ typedef int (QEMUFileWritevBufferFunc)(void *opaque, struct iovec *iov,
                                        int iovcnt);
 
 typedef struct QEMUFileOps {
-    QEMUFilePutBufferFunc *put_buffer;
     QEMUFileGetBufferFunc *get_buffer;
     QEMUFileCloseFunc *close;
     QEMUFileGetFD *get_fd;
