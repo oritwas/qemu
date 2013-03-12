@@ -241,6 +241,11 @@ static int stdio_get_fd(void *opaque)
     return fileno(s->stdio_file);
 }
 
+static int stdio_writev_buffer(void *opaque, struct iovec *iov, int iovcnt)
+{
+    return iov_writev(stdio_get_fd(opaque), iov, iovcnt);
+}
+
 static int stdio_put_buffer(void *opaque, const uint8_t *buf, int64_t pos, int size)
 {
     QEMUFileStdio *s = opaque;
@@ -321,6 +326,7 @@ static const QEMUFileOps stdio_pipe_read_ops = {
 static const QEMUFileOps stdio_pipe_write_ops = {
     .get_fd =     stdio_get_fd,
     .put_buffer = stdio_put_buffer,
+    .writev_buffer = stdio_writev_buffer,
     .close =      stdio_pclose
 };
 
