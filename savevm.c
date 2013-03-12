@@ -459,6 +459,18 @@ fail:
     return NULL;
 }
 
+static int block_writev_buffer(void *opaque, struct iovec *iov, int iovcnt)
+{
+    int i;
+    int size = 0;
+
+    for (i = 0; i < iovcnt; i++) {
+        bdrv_save_vmstate(opaque, iov[i].iov_base, 0, iov[i].iov_len);
+        size += iov[i].iov_len;
+    }
+    return size;
+}
+
 static int block_put_buffer(void *opaque, const uint8_t *buf,
                            int64_t pos, int size)
 {
@@ -483,6 +495,7 @@ static const QEMUFileOps bdrv_read_ops = {
 
 static const QEMUFileOps bdrv_write_ops = {
     .put_buffer = block_put_buffer,
+    .writev_buffer = block_writev_buffer,
     .close =      bdrv_fclose
 };
 
